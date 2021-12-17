@@ -94,6 +94,12 @@ class RiverIO:
             # buf_dA=infile[i+8+D.nR]; buf_dA=buf_dA.split(); Tru.dA[i,:]=array(buf_dA,float)
             # buf_h=infile[i+9+2*D.nR]; buf_h=buf_h.split(); Tru.h[i,:]=array(buf_h,float)
             # buf_W=infile[i+10+3*D.nR]; buf_W=buf_W.split(); Tru.W[i,:]=array(buf_W,float)
-  
-             
+     
+    def SubSelectData(self,iUse):
+       self.ObsData["nt"]=len(iUse)           
+       self.ObsData["h"]= self.ObsData["h"][:,iUse]
+       self.ObsData["w"]= self.ObsData["w"][:,iUse]
+       self.ObsData["S"]= self.ObsData["S"][:,iUse]
+       self.ObsData["t"]= self.ObsData["t"][:,iUse]
+       self.TruthData["Q"]= self.TruthData["Q"][:,iUse]
         
