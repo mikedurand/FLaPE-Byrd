@@ -130,3 +130,6 @@ dmypy.json
 
 # More custom file patters
 .DS_Store
+*.swp
+.ipynb_checkpoints/ExampleUsage-checkpoint.ipynb
+.ipynb_checkpoints/ExampleUsage-checkpoint.ipynb
