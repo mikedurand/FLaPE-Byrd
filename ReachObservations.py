@@ -9,12 +9,22 @@ from numpy import reshape,concatenate,zeros,ones,triu,empty,arctan,tan,pi,std,me
 from scipy import stats,optimize
 import matplotlib.pyplot as plt
 import copy
+import warnings
+
+try:
+    from offline.discharge import area
+except ImportError:
+    print('Warning in ReachObservations: No area module found. MetroMan style area calculations will be used')
 
 class ReachObservations:    
         
-    def __init__(self,D,RiverData,ConstrainHWSwitch=False,Calc3SD_HWFits=False,Verbose=False):
+    def __init__(self,D,RiverData,ConstrainHWSwitch=False,CalcAreaFit=0,dAOpt=0,Verbose=False):
+
+        # CalcAreaFit=0 : don't calculate; CalcAreaFits=1 : use equal-spaced breakpoints; CalcAreaFits=2 : optimize breakpoints
+	# dAOpt=0 : use MetroMan style calculation; dAopt=1 : use SWOT L2 style calculation
         
         self.D=D    
+        self.CalcAreaFit=CalcAreaFit
         self.ConstrainHWSwitch=ConstrainHWSwitch
         self.Verbose=Verbose
         
@@ -27,25 +37,35 @@ class ReachObservations:
         self.sigw=RiverData["sigw"]
         self.sigS=RiverData["sigS"]    
 
-        # calculate H-W fits for 3 sub-domain using EIV model a la SWOT
-        if Calc3SD_HWFits:
-            self.CalcHWFits()
+        # calculate Area (i.e. H-W) fits for 3 sub-domain using EIV model a la SWOT
+        if self.CalcAreaFit > 0:
+            self.CalcAreaFits()
         
         # constrain heights and widths to be self-consistent
-        if Calc3SD_HWFits:
-             print('hello')
-        else:
-             self.ConstrainHW()
+        self.ConstrainHW()
 
-        #%% create resahepd versions of observations
+        # create resahepd versions of observations
         self.hv=reshape(self.h, (self.D.nR*self.D.nt,1) )
         self.Sv=reshape(self.S, (self.D.nR*self.D.nt,1) )
         self.wv=reshape(self.w, (self.D.nR*self.D.nt,1) )
         
-        DeltaAHat=empty( (self.D.nR,self.D.nt-1) )
-        self.DeltaAHatv = self.calcDeltaAHatv(DeltaAHat)
-        self.dA= concatenate(  (zeros( (self.D.nR,1) ), DeltaAHat @ triu(ones( (self.D.nt-1,self.D.nt-1) ),0)),1 )
-        self.dAv=self.D.CalcU() @ self.DeltaAHatv
+        # check area calculation option
+        if dAOpt==1 and ( "area" not in globals() ):
+             if self.Verbose:
+                  print('Warning Reach Observations tried to use SWOT-style area calcs, but no area function available. using MetroMan-style instead')
+             dAOpt=0
+
+        # calculate areas
+        if dAOpt == 0:
+             print('MetroMan-style area calculations')
+             DeltaAHat=empty( (self.D.nR,self.D.nt-1) )
+             self.DeltaAHatv = self.calcDeltaAHatv(DeltaAHat)
+             self.dA= concatenate(  (zeros( (self.D.nR,1) ), DeltaAHat @ triu(ones( (self.D.nt-1,self.D.nt-1) ),0)),1 )
+             self.dAv=self.D.CalcU() @ self.DeltaAHatv
+        elif dAOpt == 1:
+             print('SWOT-style area calculations')
+             
+             test=area(self.h[0,0],self.w[0,0],0)
 
     def calcDeltaAHatv(self, DeltaAHat):
         
@@ -169,9 +189,8 @@ class ReachObservations:
 
         return beta1hat, beta0hat
 
-    def CalcHWFits(self,r=0):
+    def CalcAreaFits(self,r=0):
 
-        import warnings
         warnings.filterwarnings("ignore", message="delta_grad == 0.0. Check if the approximated function is linear.")
 
         # this computes the SWOT-like height-width fit
@@ -220,8 +239,11 @@ class ReachObservations:
         A=array([[1,-1]])
         constraint2=optimize.LinearConstraint(A,-inf,-0.1)    
 
-        ReturnSolution=False
-        res = optimize.minimize(fun=SSE_outer,
+        #3.3 nested solution to three-subdomain fit
+        if self.CalcAreaFit == 2:
+            #3.3.1 optimize breakpoints
+            ReturnSolution=False
+            res = optimize.minimize(fun=SSE_outer,
                     x0=init_params_outer,
                     args=(self.h[r,:],self.w[r,:],ReturnSolution,self.sigh,self.sigw,self.Verbose),
                     bounds=param_bounds_outer,
@@ -229,16 +251,18 @@ class ReachObservations:
                     constraints=constraint2,
                     options={'disp':self.Verbose,'maxiter':1e2,'verbose':0})
 
-        params_outer_hat=res.x
+            params_outer_hat=res.x
 
-        ReturnSolution=True
-        [Jnest,params_inner_nest]=SSE_outer(params_outer_hat,self.h[r,:],self.w[r,:],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+            #3.3.2 compute optimal fits for optimal breakpoints
+            ReturnSolution=True
+            [Jnest,params_inner_nest]=SSE_outer(params_outer_hat,self.h[r,:],self.w[r,:],ReturnSolution,self.sigh,self.sigw,self.Verbose)
 
-        if self.Verbose:
-             print('height-width fit for nested optimization')
-             plot3SDfit(self.h[r,:],self.w[r,:],params_inner_nest,params_outer_hat)
+            if self.Verbose:
+                 print('height-width fit for nested optimization')
+                 plot3SDfit(self.h[r,:],self.w[r,:],params_inner_nest,params_outer_hat)
 
-        if res.success or (Jnest<Jset):
+        #3.3.3 determine whether to use optimal breakpoint solution or equal-spaced breakpoints 
+        if self.CalcAreaFits == 2  and(res.success or (Jnest<Jset)):
              print('nested optimiztion sucess:',res.success)
              print('nested objective:',Jnest)
              print('set objective function:',Jset)
@@ -248,6 +272,40 @@ class ReachObservations:
         else:
              self.Hbp=init_params_outer
              self.HWparams= p_inner_set
+
+        #4 pack up fit parameter data matching swot-format 
+        #4.0 initialize
+        area_fit={}
+        #4.1 set the dataset stats
+        area_fit['h_variance']=array(var(self.h[r,:]))
+        area_fit['w_variance']=array(var(self.w[r,:]))
+        area_fit['hw_covariance']=cov(self.w[r,:],self.h[r,:])
+        area_fit['med_flow_area']=array(0.) #this value estimated as described below 
+        area_fit['h_err_stdev']=array(self.sigh)
+        area_fit['w_err_stdev']=array(self.sigw)
+        area_fit['h_w_nobs']=array(self.D.nt)
+
+        #4.2 set fit_coeffs aka parameters aka coefficients - translate to SWOT L2 style format
+        # pi = p00, p01, p10, p11, p20,p21 i.e. p[domain 0][coefficient 0], p[domain 0][coefficient 1], p[domain 1][coefficient 0],...
+        nsd=3
+        ncoef=2
+        area_fit['fit_coeffs']=zeros((ncoef,nsd,1))
+        for sd in range(nsd):
+            for coef in range(ncoef):
+                param_indx=sd*ncoef+coef
+                area_fit['fit_coeffs'][coef,sd] = self.HWparams[param_indx]
+
+        #4.3 set h_break
+        area_fit['h_break']=zeros((4,1))
+        area_fit['h_break'][0]=min(self.h[r,:])
+        area_fit['h_break'][1]=self.Hbp[0]
+        area_fit['h_break'][2]=self.Hbp[1]
+        area_fit['h_break'][3]=max(self.h[r,:])
+
+        #4.4 set w_break... though i do not think this get used so just initializing for now
+        area_fit['w_break']=zeros((4,1))
+
+        print(area_fit)
 
         return 
 
