@@ -5,7 +5,7 @@ Created on Wed Jan 13 23:49:40 2021
 @author: mtd
 """
 
-from numpy import reshape,concatenate,zeros,ones,triu,empty,arctan,tan,pi,std,mean,sqrt,var,cov,inf,polyfit,linspace,array
+from numpy import reshape,concatenate,zeros,ones,triu,empty,arctan,tan,pi,std,mean,sqrt,var,cov,inf,polyfit,linspace,array,median
 from scipy import stats,optimize
 import matplotlib.pyplot as plt
 import copy
@@ -39,6 +39,7 @@ class ReachObservations:
 
         # calculate Area (i.e. H-W) fits for 3 sub-domain using EIV model a la SWOT
         if self.CalcAreaFit > 0:
+            #caution! right now this only runs on reach 0 in this set. 
             self.CalcAreaFits()
         
         # constrain heights and widths to be self-consistent
@@ -52,7 +53,7 @@ class ReachObservations:
         # check area calculation option
         if dAOpt==1 and ( "area" not in globals() ):
              if self.Verbose:
-                  print('Warning Reach Observations tried to use SWOT-style area calcs, but no area function available. using MetroMan-style instead')
+                  print('Warning: ReachObservations tried to use SWOT-style area calcs, but no area function available. using MetroMan-style instead')
              dAOpt=0
 
         # calculate areas
@@ -64,8 +65,10 @@ class ReachObservations:
              self.dAv=self.D.CalcU() @ self.DeltaAHatv
         elif dAOpt == 1:
              print('SWOT-style area calculations')
+             self.dA=empty( (self.D.nR,self.D.nt)   )
+             for t in range(self.D.nt):
+                 self.dA[0,t],hhat,what,dAUnc=area(self.h[0,t],self.w[0,t],self.area_fit)
              
-             test=area(self.h[0,0],self.w[0,0],0)
 
     def calcDeltaAHatv(self, DeltaAHat):
         
@@ -279,7 +282,8 @@ class ReachObservations:
         #4.1 set the dataset stats
         area_fit['h_variance']=array(var(self.h[r,:]))
         area_fit['w_variance']=array(var(self.w[r,:]))
-        area_fit['hw_covariance']=cov(self.w[r,:],self.h[r,:])
+        hwcov=cov(self.w[r,:],self.h[r,:])
+        area_fit['hw_covariance']=hwcov[0,1]
         area_fit['med_flow_area']=array(0.) #this value estimated as described below 
         area_fit['h_err_stdev']=array(self.sigh)
         area_fit['w_err_stdev']=array(self.sigw)
@@ -305,7 +309,19 @@ class ReachObservations:
         #4.4 set w_break... though i do not think this get used so just initializing for now
         area_fit['w_break']=zeros((4,1))
 
-        print(area_fit)
+        #4.5 calculate cross-sectional area at median value of H
+        # a bit confusing, but we are centering the dA on the median H. so to get a dA value that
+        # coresponds to Hbar, we set dA_hbar to zero, then evaluate the area fit at a value of 
+        # Hbar. That returns the area value at median H that we use going forward
+        Hbar=median(self.h[r,:])
+        wbar=median(self.w[r,:])
+
+        dA_Hbar,hhat,what,dAunc=area(Hbar, wbar, area_fit)
+
+        area_fit['med_flow_area']=dA_Hbar
+
+        #4.6 save fit data
+        self.area_fit=area_fit
 
         return 
 
