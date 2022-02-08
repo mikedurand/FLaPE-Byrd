@@ -178,7 +178,6 @@ class RiverIO:
        self.ObsData["h"]=transpose(self.ObsData["h"])
        self.ObsData["w"]=df.chan_width.to_numpy() * 0.3048 #convert ft -> m
        self.ObsData["w"]=transpose(self.ObsData["w"])
- 
 
        iDel=logical_or(isnan(self.ObsData["h"]),isnan(self.TruthData["Q"]))
        indxDel=where(iDel)
