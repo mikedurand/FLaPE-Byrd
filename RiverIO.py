@@ -6,7 +6,10 @@ Created on Fri Jan 15 13:09:29 2021
 @author: mtd
 """
 
-from numpy import array,diff,ones,reshape,empty    
+from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not
+from netCDF4 import Dataset
+
+import datetime
 
 class RiverIO:
     # def __init__(self,IOtype,obsFname):
@@ -22,6 +25,10 @@ class RiverIO:
             if 'truthFname' in fnames.keys():
                 self.truthFname=fnames["truthFname"]
                 self.ReadMetroManTruth()                
+        elif self.type == 'Confluence':
+            if 'obsFname' in fnames.keys():
+                self.obsFname=fnames["obsFname"]
+                self.ReadConfluenceObs()
         else:
             print("RiverIO: Undefined observation data format specified. Data not read.")
         
@@ -96,10 +103,55 @@ class RiverIO:
             # buf_W=infile[i+10+3*D.nR]; buf_W=buf_W.split(); Tru.W[i,:]=array(buf_W,float)
      
     def SubSelectData(self,iUse):
-       self.ObsData["nt"]=len(iUse)           
+       self.ObsData["nt"]=sum(iUse)           
        self.ObsData["h"]= self.ObsData["h"][:,iUse]
        self.ObsData["w"]= self.ObsData["w"][:,iUse]
        self.ObsData["S"]= self.ObsData["S"][:,iUse]
-       self.ObsData["t"]= self.ObsData["t"][:,iUse]
-       self.TruthData["Q"]= self.TruthData["Q"][:,iUse]
+       self.ObsData["t"]= self.ObsData["t"][iUse]
+       #self.TruthData["Q"]= self.TruthData["Q"][:,iUse]
         
+    def ReadConfluenceObs(self):
+
+       #this file is set up to read one reach at a time! variables to be parsed in from SWORD are assigned nan for now
+
+       swot_dataset = Dataset(self.obsFname)
+
+       self.ObsData["nR"]=1
+       self.ObsData["xkm"]=nan
+       self.ObsData["L"]=nan
+       self.ObsData["nt"]=swot_dataset.dimensions["nt"].size
+
+       ts = swot_dataset["reach"]["time"][:].filled(0)
+       epoch = datetime.datetime(2000,1,1,0,0,0)
+       tall = [ epoch + datetime.timedelta(seconds=t) for t in ts ]
+       
+       self.ObsData["t"]=array(tall)
+       self.ObsData["dt"]=reshape(diff(self.ObsData["t"]).T*86400 * ones((1,self.ObsData["nR"])),(self.ObsData["nR"]*(self.ObsData["nt"]-1),1))
+
+       self.ObsData["h"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #water surface elevation (wse), [m]
+       self.ObsData["h0"]=empty( (self.ObsData["nR"],1)  ) #initial wse, [m]
+       self.ObsData["S"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #water surface slope, [-]
+       self.ObsData["w"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #river top width, [m]     
+
+#       self.ObsData["sigh"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #wse uncertainty, [m]
+#       self.ObsData["sigw"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #width uncertainty, [m]
+#       self.ObsData["sigS"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) ) #width uncertainty, [m]
+
+       for i in range(0,self.ObsData["nR"]):
+            self.ObsData["h"][i,:]=swot_dataset["reach/wse"][0:self.ObsData["nt"]].filled(nan)
+            self.ObsData["w"][i,:]=swot_dataset["reach/width"][0:self.ObsData["nt"]].filled(nan)
+            self.ObsData["S"][i,:]=swot_dataset["reach/slope2"][0:self.ObsData["nt"]].filled(nan)
+#            self.ObsData["sigh"][i,:]=swot_dataset["reach/wse_u"][0:self.ObsData["nt"]].filled(nan)
+#            self.ObsData["sigw"][i,:]=swot_dataset["reach/width_u"][0:self.ObsData["nt"]].filled(nan)
+#            self.ObsData["sigS"][i,:]=swot_dataset["reach/slope2_u"][0:self.ObsData["nt"]].filled(nan)
+
+       self.ObsData["sigh"]=0.1
+       self.ObsData["sigw"]=10.0
+       self.ObsData["sigS"]=1.7e-5
+
+       #try cutting out data that are fill value 
+       iUse= logical_not(isnan(self.ObsData['h'][0,:]))
+       self.SubSelectData(iUse)
+
+       #close dataset
+       swot_dataset.close()
