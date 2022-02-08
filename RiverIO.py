@@ -161,7 +161,8 @@ class RiverIO:
 
     def ReadUSGSFieldData(self):
        df = pd.read_csv(self.datFname,sep='\t',header=[14,15])
-       self.TruthData["Q"]=df.discharge_va.to_numpy() * 0.3048**3 #convert cfs -> cms
+       #self.TruthData["Q"]=df.discharge_va.to_numpy() * 0.3048**3 #convert cfs -> cms
+       self.TruthData["Q"]=df.chan_discharge.to_numpy() * 0.3048**3 #convert cfs -> cms
        self.TruthData["Q"]=transpose(self.TruthData["Q"])
        self.TruthData["A0"]=nan
        self.ObsData["nR"]=1
@@ -179,8 +180,15 @@ class RiverIO:
        self.ObsData["w"]=df.chan_width.to_numpy() * 0.3048 #convert ft -> m
        self.ObsData["w"]=transpose(self.ObsData["w"])
 
+       self.ObsData["A"]=df.chan_area.to_numpy() * 0.3048**2 #convert ft -> m
+       self.ObsData["A"]=transpose(self.ObsData["A"])
+       
        iDel=logical_or(isnan(self.ObsData["h"]),isnan(self.TruthData["Q"]))
+       iDel=logical_or(iDel,isnan(self.ObsData["A"]))
+       iDel=logical_or(iDel,isnan(self.ObsData["w"]))
+       iDel=logical_or(iDel,self.ObsData["w"]==0)
        indxDel=where(iDel)
+  
        nDel=sum(iDel,axis=1)
   
        self.ObsData["nt"]-=nDel[0]
@@ -191,4 +199,7 @@ class RiverIO:
        self.ObsData["S"]=delete(self.ObsData["S"],indxDel[1],axis=1)
        self.TruthData["Q"]=delete(self.TruthData["Q"],indxDel[1],axis=1)
 
+       self.ObsData["A"]=delete(self.ObsData["A"],indxDel[1],axis=1)
+
+       self.ObsData["D"]=self.ObsData["A"]/self.ObsData["w"]
 

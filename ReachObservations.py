@@ -42,10 +42,6 @@ class ReachObservations:
         self.ConstrainHW()
 
         # create resahepd versions of observations
-
-        print(self.D.nR)
-        print(self.D.nt)
-
         self.hv=reshape(self.h, (self.D.nR*self.D.nt,1) )
         self.Sv=reshape(self.S, (self.D.nR*self.D.nt,1) )
         self.wv=reshape(self.w, (self.D.nR*self.D.nt,1) )

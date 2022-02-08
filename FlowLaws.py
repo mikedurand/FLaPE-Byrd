@@ -199,3 +199,22 @@ class PVK(FlowLaws):
         #etc
         param_bounds=( (0.001, inf)  , (-min(self.dA)+1,inf), (0.001,inf) )
         return param_bounds               
+
+class AHGD_field(FlowLaws):
+    # this flow law is at-a-station hydraulic geometry for depth
+    #    intended to be used with depth - discharge field data
+    #    for simplicity, redfine H as hydraulic depth
+   #     note - in other functions, it is WSE 
+
+    def __init__(self,dA,W,S,H):
+        super().__init__(dA,W,S,H)     
+    def CalcQ(self,params):
+        Q=params[0]*self.H ** params[1]
+        return Q
+    def GetInitParams(self):
+        init_params=[1.0,0.5]
+        return init_params       
+    def GetParamBounds(self):
+        #etc
+        param_bounds=( (0.01,inf),(0.,inf) )
+        return param_bounds               
