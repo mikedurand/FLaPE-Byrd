@@ -42,6 +42,10 @@ class ReachObservations:
         self.ConstrainHW()
 
         # create resahepd versions of observations
+
+        print(self.D.nR)
+        print(self.D.nt)
+
         self.hv=reshape(self.h, (self.D.nR*self.D.nt,1) )
         self.Sv=reshape(self.S, (self.D.nR*self.D.nt,1) )
         self.wv=reshape(self.w, (self.D.nR*self.D.nt,1) )
@@ -54,13 +58,15 @@ class ReachObservations:
 
         # calculate areas
         if dAOpt == 0:
-             print('MetroMan-style area calculations')
+             if self.Verbose:
+                  print('MetroMan-style area calculations')
              DeltaAHat=empty( (self.D.nR,self.D.nt-1) )
              self.DeltaAHatv = self.calcDeltaAHatv(DeltaAHat)
              self.dA= concatenate(  (zeros( (self.D.nR,1) ), DeltaAHat @ triu(ones( (self.D.nt-1,self.D.nt-1) ),0)),1 )
              self.dAv=self.D.CalcU() @ self.DeltaAHatv
         elif dAOpt == 1:
-             print('SWOT-style area calculations')
+             if self.Verbose:
+                  print('SWOT-style area calculations')
              self.dA=empty( (self.D.nR,self.D.nt)   )
              for t in range(self.D.nt):
                  self.dA[0,t],what,hhat,dAUnc=area(self.h[0,t],self.w[0,t],self.area_fit)

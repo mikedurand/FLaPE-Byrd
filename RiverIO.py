@@ -6,9 +6,9 @@ Created on Fri Jan 15 13:09:29 2021
 @author: mtd
 """
 
-from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not
+from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not,shape,transpose,logical_and,delete,logical_or,sum,nonzero,arange
 from netCDF4 import Dataset
-
+import pandas as pd
 import datetime
 
 class RiverIO:
@@ -29,10 +29,13 @@ class RiverIO:
             if 'obsFname' in fnames.keys():
                 self.obsFname=fnames["obsFname"]
                 self.ReadConfluenceObs()
+        elif self.type == 'USGS-field':
+            if 'dataFname' in fnames.keys():
+                self.datFname=fnames["dataFname"]
+                self.ReadUSGSFieldData()
         else:
             print("RiverIO: Undefined observation data format specified. Data not read.")
         
-    
     
     def ReadMetroManObs(self):
         # Read observation file in MetroMan text format        
@@ -155,3 +158,38 @@ class RiverIO:
 
        #close dataset
        swot_dataset.close()
+
+    def ReadUSGSFieldData(self):
+       df = pd.read_csv(self.datFname,sep='\t',header=[14,15])
+       self.TruthData["Q"]=df.discharge_va.to_numpy() * 0.3048**3 #convert cfs -> cms
+       self.TruthData["Q"]=transpose(self.TruthData["Q"])
+       self.TruthData["A0"]=nan
+       self.ObsData["nR"]=1
+       self.ObsData["xkm"]=nan
+       self.ObsData["L"]=nan
+       self.ObsData["h0"]=nan
+       self.ObsData["sigh"]=nan
+       self.ObsData["sigw"]=nan
+       self.ObsData["sigS"]=nan
+       self.ObsData["dt"]=nan
+       self.ObsData["nt"]=df.shape[0]
+       self.ObsData["S"]=empty([1,self.ObsData["nt"] ])
+       self.ObsData["h"]=df.gage_height_va.to_numpy() * 0.3048 #convert ft -> m
+       self.ObsData["h"]=transpose(self.ObsData["h"])
+       self.ObsData["w"]=df.chan_width.to_numpy() * 0.3048 #convert ft -> m
+       self.ObsData["w"]=transpose(self.ObsData["w"])
+ 
+
+       iDel=logical_or(isnan(self.ObsData["h"]),isnan(self.TruthData["Q"]))
+       indxDel=where(iDel)
+       nDel=sum(iDel,axis=1)
+  
+       self.ObsData["nt"]-=nDel[0]
+       self.ObsData["t"]=arange(self.ObsData["nt"])
+
+       self.ObsData["h"]=delete(self.ObsData["h"],indxDel[1],axis=1)
+       self.ObsData["w"]=delete(self.ObsData["w"],indxDel[1],axis=1)
+       self.ObsData["S"]=delete(self.ObsData["S"],indxDel[1],axis=1)
+       self.TruthData["Q"]=delete(self.TruthData["Q"],indxDel[1],axis=1)
+
+
