@@ -123,8 +123,10 @@ class AHGW(FlowLaws):
         return param_bounds               
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
-        dydp[0]=2*sum( (Qt-params[0]*self.W**params[1])*self.W**params[1] )
-        dydp[1]=2*sum( (Qt-params[0]*self.W**params[1])*params[0]*params[1]*self.W**(params[1]-1) )
+#        dydp[0]=-2*sum( (Qt-params[0]*self.W**params[1])*self.W**params[1] )
+#        dydp[1]=-2*sum( (Qt-params[0]*self.W**params[1])*params[0]*params[1]*self.W**(params[1]-1) )
+        dydp[0]=-2*sum( (Qt-params[0]*self.W**params[1])*self.W**params[1] )
+        dydp[1]=-2*sum( (Qt-params[0]*self.W**params[1])*(log(self.W**params[1]))*(params[0]*self.W**params[1]))
         return dydp
 
 class AHGD(FlowLaws):

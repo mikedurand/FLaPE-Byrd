@@ -50,12 +50,18 @@ class FlowLawCalibration:
 
         param_bounds=optimize.Bounds(lb,ub)
 
+        print('Qtrue=',self.Qtrue)
+        print('width=',self.FlowLaw.W)
+        print('initial flow law parameters=',init_params)
+        print('Jacobian at initial parameters=',self.FlowLaw.Jacobian(init_params,self.Qtrue) )
+
         #note can set verbose option to 3 for debugging
         res = optimize.minimize(fun=self.ObjectiveFunc,
                                 x0=init_params,
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
+                                jac=self.FlowLaw.Jacobian,
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0})
 
         if not res.success:
@@ -81,7 +87,7 @@ class FlowLawCalibration:
         self.success=res.success
 
         if not self.success:
-            print('Optimize Failed! Setting parameters to nan')
+            print('FlowLawCalibration: Optimize Failed! Setting flow law parameters to nan')
             self.param_est=empty( len(fl_param_bounds), )
             self.param_est[:]=nan
         else:
@@ -97,11 +103,6 @@ class FlowLawCalibration:
         Qhat=self.FlowLaw.CalcQ(params)
         y=sum((Qhat-Q)**2)
         return y
-
-#    def ObjectiveFuncReg(self,params,Q):      
-#        Qhat=self.FlowLaw.CalcQ(params)
-#        y=sum((Qhat-Q)**2)/mean(Q)+(params[0]-0.03)/.03
-#        return y
 
 
     def PlotTimeseries(self,PlotTitle='',SaveFilename='',ShowLegend=True):

@@ -255,6 +255,9 @@ class ReachObservations:
                     constraints=constraint2,
                     options={'disp':self.Verbose,'maxiter':1e2,'verbose':0})
 
+            if self.Verbose:
+                 print('Optimizer finished to find H-W breakpoints. Status=',res.success)
+
             params_outer_hat=res.x
 
             #3.3.2 compute optimal fits for optimal breakpoints
