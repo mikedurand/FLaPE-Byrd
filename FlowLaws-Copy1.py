@@ -19,12 +19,13 @@ class FlowLaws:
         self.params=[]
         self.init_params=[]                
         
+        
+        
 class MWACN(FlowLaws):
     # this flow law is Manning's equation, wide-river approximation, area-formulation, 
     #   constant friction coefficient, no channel shape assumption: MWACN
     def __init__(self,dA,W,S,H):
         super().__init__(dA,W,S,H)        
-        
     def CalcQ(self,params):
         Q=1/params[0]*(params[1]+self.dA)**(5/3)*self.W**(-2/3)*self.S**(1/2)
         return Q
@@ -36,6 +37,11 @@ class MWACN(FlowLaws):
     def GetParamBounds(self):
         param_bounds=( (.001, 1)  , (-min(self.dA)+1,inf) )
         return param_bounds
+    def Jacobian(self,params,Qt):
+        dydp=zeros_like(params)
+        dydp[0]=sum((2*sqrt(self.S)*(self.dA+params[1])**(5/3)*(Qt-(sqrt(self.S)*(self.dA+A)**(5/3))/(self.W**(2/3)*params[0])))/(W**(2/3)*params[0]**2))
+        dydp[1]=-sum((10*sqrt(self.S)*(params[1]+self.dA)**(2/3)*(Qt-(sqrt(self.S)*(params[1]+self.dA)**(5/3))/(self.W**(2/3)*params[0])))/(3*W**(2/3)*params[0]))
+        return dydp    
     def CalcQUn(self,params,sigh,sigw,order):
         if order == 1:
              QUnH=5/3*sqrt(2)*mean(self.W)*sigh/(params[1]+std(self.dA)) #1st order approximation
@@ -46,12 +52,11 @@ class MWACN(FlowLaws):
         else:
              QUn=inf
         return QUn,QUnH,QUnW
-    def Jacobian(self,params,Qt):
-        dydp=zeros_like(params)                  
-        dydp[0]=2*sum(((self.dA+params[1])**(5/3)*(Qt*sqrt(self.S)*self.W**(2/3)*params[0]-self.S*(self.dA+params[1])**(5/3)))/(self.W**(4/3)*params[0]**3))
-        dydp[1]=(10/3)*sum(((self.dA+params[1])**(2/3)*(self.S*(self.dA+params[1])**(5/3)-Qt*sqrt(self.S)*self.W**(2/3)*params[0])/(self.W**(4/3)*params[0]**2)))
-        return dydp
 
+
+    
+    
+    
 class MWAPN(FlowLaws):
     # this flow law is Manning's equation, wide-river approximation, area-formulation, 
     #   powerlaw  friction coefficient, no channel shape assumption: MWAPN
@@ -68,14 +73,16 @@ class MWAPN(FlowLaws):
     def GetParamBounds(self):
         #etc
         param_bounds=( (.001, 1)  , (-min(self.dA)+1,inf), (-inf,inf) )
-        return param_bounds
+        return param_bounds               
     def Jacobian(self,params,Qt):
-        dydp=zeros_like(params)                  
-        dydp[0]=sum((2*(self.dA+params[1])**(5/3)*sqrt(self.S)*(Qt-((self.dA+params[1])**(5/3)*sqrt(self.S))/(((self.dA+params[1])/self.W)**params[2]*self.W**(2/3)*params[0])))/(((self.dA+ params[1])/self.W)**params[2]*self.W**(2/3)*params[0]**2))
-        dydp[1]=sum(2*((sqrt(self.S)*params[2]*(params[1]+self.dA)**(2/3))/(self.W**(2/3)*params[0]*((params[1]+self.dA)/self.W)**params[2])-(5*sqrt(self.S)*(params[1]+self.dA)**(2/3))/(3*self.W**(2/3)*params[0]*((params[1]+self.dA)/self.W)**params[2]))*(Qt-(sqrt(self.S)*(params[1]+self.dA)**(5/3))/(self.W**(2/3)*params[0]*((params[1]+self.dA)/self.W)**params[2])))
-        dydp[2]=sum((2*(self.dA+params[1])**(5/3)*sqrt(self.S)*log((self.dA+params[1])/self.W)*(Qt-((self.dA+params[1])**(5/3)*sqrt(self.S))/(((self.dA+params[1])/self.W)**params[2]*self.W**(2/3)*params[0])))/(((self.dA+params[1])/self.W)**params[2]*self.W**(2/3)*params[0]))
+        dydp=zeros_like(params)
+        dydp[0]=sum()
+        dydp[1]=sum()
         return dydp
-
+    
+    
+    
+    
 class MWAVN(FlowLaws):
     # this flow law is Manning's equation, wide-river approximation, area-formulation, 
     #   hydraulic spatial variability approach, no channel shape assumption: MWAVN
@@ -96,14 +103,16 @@ class MWAVN(FlowLaws):
     def GetParamBounds(self):
         #etc
         param_bounds=( (.001, 1)  , (-min(self.dA)+1,inf), (-inf,inf) )
-        return param_bounds
+        return param_bounds               
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
-        dydp[0]=sum((2*(params[1]+self.dA)**(5/3)*sqrt(self.S)*(Qt-((params[1]+self.dA)**(5/3)*sqrt(self.S))/(self.W**(2/3)*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1)*params[0])))/(self.W**(2/3)*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1)*params[0]**2))
-        dydp[1]=sum(2*(-(5*sqrt(self.S)*(params[1]+self.dA)**(2/3))/(3*self.W**(2/3)*params[0]*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1))-(5*sqrt(self.S)*self.W**(4/3)*params[2]**2)/(3*params[0]*(params[1]+self.dA)**(4/3)*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1)**2))*(Qt-(sqrt(self.S)*(params[1]+self.dA)**(5/3))/(self.W**(2/3)*params[0]*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1))))
-        dydp[2]=sum((10*sqrt(self.S)*self.W**(4/3)*params[2]*(Qt-((params[1]+self.dA)**(5/3)*sqrt(self.S))/(self.W**(2/3)*params[0]*((5*self.W**2*params[2]**2)/(6*(params[1]+self.dA)**2)+1))))/(3*(params[1]+self.dA)**(1/3)*params[0]*((5*self.W**2* params[2]**2)/(6*(params[1]+self.dA)**2)+1)**2))
-        return dydp     
-
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
+    
+    
+    
+    
 class MWHCN(FlowLaws):
     # this flow law is Manning's equation, height only, constant n: MWHCN
     # params=n, H0
@@ -120,13 +129,16 @@ class MWHCN(FlowLaws):
     def GetParamBounds(self):
         #etc
         param_bounds=( (.001, 1.0)  , (-inf,min(self.H)-0.1) )
-        return param_bounds 
+        return param_bounds  
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
-        dydp[0]=2*sum((sqrt(self.S)*self.W*(self.H-params[1])**(5/3)*(Qt-(sqrt(self.S)*self.W*(self.H-params[1])**(5/3))/params[0]))/params[0]**2)
-        dydp[1]=10*sum((sqrt(self.S)*self.W*(Qt-(sqrt(self.S)*self.W*(self.H-params[1])**(5/3))/params[0])*(self.H-params[1])**(2/3))/(3*params[0]))
-        return dydp     
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
 
+    
+    
+    
 class AHGW(FlowLaws):
     # this flow law is at-a-station hydraulic geometry for width
     #    Q=aW**b params=a,b
@@ -144,10 +156,16 @@ class AHGW(FlowLaws):
         return param_bounds               
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
+#        dydp[0]=-2*sum( (Qt-params[0]*self.W**params[1])*self.W**params[1] )
+#        dydp[1]=-2*sum( (Qt-params[0]*self.W**params[1])*params[0]*params[1]*self.W**(params[1]-1) )
         dydp[0]=-2*sum( (Qt-params[0]*self.W**params[1])*self.W**params[1] )
         dydp[1]=-2*sum( (Qt-params[0]*self.W**params[1])*(log(self.W**params[1]))*(params[0]*self.W**params[1]))
-        return dydp 
+        return dydp
 
+    
+    
+    
+    
 class AHGD(FlowLaws):
     # this flow law is at-a-station hydraulic geometry for depth
     #    it is identical to typical rating curves
@@ -164,16 +182,16 @@ class AHGD(FlowLaws):
     def GetParamBounds(self):
         #etc
         param_bounds=( (0.01,inf),(-inf,min(self.H)-0.1),(0.01,10.) )
-        return param_bounds
+        return param_bounds               
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
-        dydp[0]=-2*sum((self.H-params[1])**params[2]*(Qt-(self.H-params[1])**params[2]*params[0]))
-        dydp[1]=-2*sum((params[0]*params[2]*(Qt-params[0]*(self.H-params[1])**params[2])*(self.H-params[1])**(params[2]-1)))
-        dydp[2]=-2*sum((params[0]*(self.H-params[1])**params[2]*log(self.H-params[1])*(Qt-params[0]*(self.H-params[1])**params[2])))
-        return dydp       
-            
-            
-            
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
+    
+    
+    
+    
 class MOMMA(FlowLaws):
     # this is MOMMA, as written in eqns 9 and 10 of Frasson et al 2021
     # params=nb, Hb, B, r
@@ -191,7 +209,15 @@ class MOMMA(FlowLaws):
         #etc
         param_bounds=( (0.01,inf),(min(self.H)+0.1,max(self.H)),(-inf,min(self.H)-0.1),(0.01,inf) )
         return param_bounds               
-
+    def Jacobian(self,params,Qt):
+        dydp=zeros_like(params)
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
+    
+    
+    
+    
 class MWHFN(FlowLaws):
     # this flow law is Manning's equation, height only, fixed n: MWHCN
     # params= H0
@@ -209,26 +235,15 @@ class MWHFN(FlowLaws):
         #etc
         param_bounds=( (-inf,min(self.H)-0.1) )
         return param_bounds               
-
-class PVK(FlowLaws):
-    # this flow law is Prandtl von Karman equation
-    # params= C, A0, y0
-    def __init__(self,dA,W,S,H):
-        super().__init__(dA,W,S,H)     
-    def CalcQ(self,params):
-        g=9.81
-        Q=params[0]*(params[1]+self.dA)*(g*(params[1]+self.dA)/self.W*self.S )**0.5*log( (params[1]+self.dA)/self.W/params[2] )
-        return Q
-    def GetInitParams(self):
-        #etc
-        H0max=min(self.H)-0.1
-        init_params=[10., -min(self.dA)+1+std(self.dA),1]
-        return init_params       
-    def GetParamBounds(self):
-        #etc
-        param_bounds=( (0.001, inf)  , (-min(self.dA)+1,inf), (0.001,inf) )
-        return param_bounds               
-
+    def Jacobian(self,params,Qt):
+        dydp=zeros_like(params)
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
+    
+    
+        
+    
 class AHGD_field(FlowLaws):
     # this flow law is at-a-station hydraulic geometry for depth
     #    intended to be used with depth - discharge field data
@@ -247,3 +262,32 @@ class AHGD_field(FlowLaws):
         #etc
         param_bounds=( (0.01,inf),(0.,inf) )
         return param_bounds               
+    def Jacobian(self,params,Qt):
+        dydp=zeros_like(params)
+        dydp[0]=sum()
+        dydp[1]=sum()
+        return dydp
+    
+    
+    
+    
+    
+class PVK(FlowLaws):
+    # this flow law is Prandtl von Karman equation
+    # params= C, A0, y0
+    def __init__(self,dA,W,S,H):
+        super().__init__(dA,W,S,H)     
+    def CalcQ(self,params):
+        g=9.81
+        Q=params[0]*(params[1]+self.dA)*(g*(params[1]+self.dA)/self.W*self.S )**0.5*log( (params[1]+self.dA)/self.W/params[2] )
+        return Q
+    def GetInitParams(self):
+        #etc
+        H0max=min(self.H)-0.1
+        init_params=[10., -min(self.dA)+1+std(self.dA),1]
+        return init_params       
+    def GetParamBounds(self):
+        #etc
+        param_bounds=( (0.001, inf)  , (-min(self.dA)+1,inf), (0.001,inf) )
+        return param_bounds               
+    
