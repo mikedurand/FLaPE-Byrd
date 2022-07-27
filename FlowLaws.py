@@ -190,7 +190,14 @@ class MOMMA(FlowLaws):
     def GetParamBounds(self):
         #etc
         param_bounds=( (0.01,inf),(min(self.H)+0.1,max(self.H)),(-inf,min(self.H)-0.1),(0.01,inf) )
-        return param_bounds               
+        return param_bounds
+    def Jacobian(self,params,Qt):
+        dydp=zeros_like(params)
+        dydp[0]=sum((2*sqrt(self.S)*self.W* params[3]**(5/3)*(self.H-params[2])**(5/3)*(Qt-(sqrt(self.S)*self.W*params[3]**(5/3)*(self.H-params[2])**(5/3))/((params[3]+1)**(5/3)*(log((params[1]- params[2])/(self.H-params[2]))+1)* params[0])))/(( params[3]+1)**(5/3)*(log((params[1]-params[2])/(self.H-params[2]))+1)*params[0]**2))
+        dydp[1]=sum((2*sqrt(self.S)*self.W* params[3]**(5/3)*(self.H- params[2])**(5/3)*(Qt-(sqrt(self.S)*self.W* params[3]**(5/3)*(self.H- params[2])**(5/3))/( params[0]*( params[3]+1)**(5/3)*(log((params[1]- params[2])/(self.H- params[2]))+1))))/(params[0]*( params[3]+1)**(5/3)*(params[1]- params[2])*(log((params[1]- params[2])/(self.H- params[2]))+1)**2))
+        dydp[2]=sum(2*(Qt-(sqrt(self.S)*self.W* params[3]**(5/3)*(self.H- params[2])**(5/3))/(params[0]*(params[3]+1)**(5/3)*(log((params[1]- params[2])/(self.H- params[2]))+1)))*((sqrt(self.S)*self.W* params[3]**(5/3)*(( params[1]-params[2])/(self.H- params[2])**2-1/(self.H- params[2]))*(self.H- params[2])**(8/3))/(params[0]*( params[3]+1)**(5/3)*(log((params[1]- params[2])/(self.H-params[2]))+1)**2*( params[1]- params[2]))+(5*sqrt(self.S)*self.W*params[3]**(5/3)*(self.H- params[2])**(2/3))/(3*params[0]*( params[3]+1)**(5/3)*(log((params[1]- params[2])/(self.H-params[2]))+1))))
+        dydp[3]=sum(2*((5*sqrt(self.S)*self.W*(self.H-params[2])**(5/3)* params[3]**(5/3))/(3*params[0]*(log((params[1]-params[2])/(self.H- params[2]))+1)*(params[3]+1)**(8/3))-(5*sqrt(self.S)*self.W*(self.H- params[2])**(5/3)*params[3]**(2/3))/(3*params[0]*(log((params[1]- params[2])/(self.H-params[2]))+1)*(params[3]+1)**(5/3)))*(Qt-(sqrt(self.S)*self.W*(self.H-params[2])**(5/3)* params[3]**(5/3))/(params[0]*(log((params[1]- params[2])/(self.H-params[2]))+1)*(params[3]+1)**(5/3))))
+        return dydp 
 
 class MWHFN(FlowLaws):
     # this flow law is Manning's equation, height only, fixed n: MWHCN
