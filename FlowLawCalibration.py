@@ -50,10 +50,10 @@ class FlowLawCalibration:
 
         param_bounds=optimize.Bounds(lb,ub)
 
-        print('Qtrue=',self.Qtrue)
-        print('width=',self.FlowLaw.W)
-        print('initial flow law parameters=',init_params)
-        print('Jacobian at initial parameters=',self.FlowLaw.Jacobian(init_params,self.Qtrue) )
+        #print('Qtrue=',self.Qtrue)
+        #print('width=',self.FlowLaw.W)
+        #print('initial flow law parameters=',init_params)
+        #print('Jacobian at initial parameters=',self.FlowLaw.Jacobian(init_params,self.Qtrue) )
 
         #note can set verbose option to 3 for debugging
         res = optimize.minimize(fun=self.ObjectiveFunc,
@@ -73,6 +73,7 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
+                                jac=self.FlowLaw.Jacobian,
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0})
         
         if not res.success:
@@ -82,6 +83,7 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
+                                jac=self.FlowLaw.Jacobian,
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0,'finite_diff_rel_step':1.0})
  
         self.success=res.success
