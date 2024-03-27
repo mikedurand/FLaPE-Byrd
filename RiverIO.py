@@ -6,7 +6,7 @@ Created on Fri Jan 15 13:09:29 2021
 @author: mtd
 """
 
-from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not,shape,transpose,logical_and,delete,logical_or,sum,nonzero,arange
+from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not,shape,transpose,logical_and,delete,logical_or,sum,nonzero,arange,linspace
 from netCDF4 import Dataset
 import pandas as pd
 import datetime
@@ -33,6 +33,10 @@ class RiverIO:
             if 'dataFname' in fnames.keys():
                 self.datFname=fnames["dataFname"]
                 self.ReadUSGSFieldData()
+        elif self.type == 'df':
+            if 'obsFname' in fnames.keys():
+                self.obsFname=fnames["obsFname"]
+                self.ParsePandasDF()
         else:
             print("RiverIO: Undefined observation data format specified. Data not read.")
         
@@ -204,4 +208,45 @@ class RiverIO:
        self.ObsData["A"]=delete(self.ObsData["A"],indxDel[1],axis=1)
 
        self.ObsData["D"]=self.ObsData["A"]/self.ObsData["w"]
+    def ParsePandasDF(self):
+        hwdata=pd.read_csv(self.obsFname)
+        self.ObsData["nt"]=len(hwdata)
+        self.ObsData["nR"]=1
+        self.ObsData["xkm"]=nan
+        self.ObsData["L"]=nan
+        self.ObsData["t"]=linspace(1,self.ObsData["nt"],self.ObsData["nt"])
+        self.ObsData["dt"]=nan
+        self.ObsData["S"]=empty( (1,self.ObsData["nt"]) )
+        self.ObsData["h0"]=nan
+        
+        self.ObsData["sigh"]=.05 # height uncertainty in meters
+        self.ObsData["sigS"]=nan
+    
+        
+        #find columns that correspond to height and width
+        cols=list(hwdata.columns)
+        
+        heightcol=''
+        widthcol=''        
+        for col in cols:            
+            if col[0:6]=='Height':
+                heightcol=col
+            elif col[0:5]=='Width':
+                widthcol=col
+                
+        if widthcol and heightcol:
+            print('Parsing data frame, assigning width column=',widthcol,'and height column=',heightcol)
+        else:
+            print('Unable to parse dataframe')
+        
+        # assign data
+        # self.ObsData["h"]=hwdata[heightcol].values
+        # self.ObsData["w"]=hwdata[widthcol].values
+        
+        #
+        self.ObsData["h"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
+        self.ObsData["w"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
+        self.ObsData["h"][0,:]=reshape(hwdata[heightcol].values,(1,self.ObsData["nt"])) 
+        self.ObsData["w"][0,:]=reshape(hwdata[widthcol].values,(1,self.ObsData["nt"])) 
+        
 
