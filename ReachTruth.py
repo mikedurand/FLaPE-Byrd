@@ -10,5 +10,6 @@ class ReachTruth:
     def __init__(self,TruthData):
         self.A0=TruthData["A0"]
         self.Q=TruthData["Q"]
+        self.h=TruthData["h"]
         
 # plan to add plotting methods, perhaps others

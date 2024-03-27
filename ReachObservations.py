@@ -1,11 +1,12 @@
-#!/usr/bin/env python3
+#/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jan 13 23:49:40 2021
 @author: mtd
 """
 
-from numpy import reshape,concatenate,zeros,ones,triu,empty,arctan,tan,pi,std,mean,sqrt,var,cov,inf,polyfit,linspace,array,median
+from numpy import reshape,concatenate,zeros,ones,triu,empty,arctan,tan,pi,std,\
+   mean,sqrt,var,cov,inf,polyfit,linspace,array,median,piecewise,nanmedian
 import numpy as np
 from scipy import stats,optimize
 import matplotlib.pyplot as plt
@@ -14,62 +15,98 @@ import warnings
 
 class ReachObservations:    
         
-    def __init__(self,D,RiverData,ConstrainHWSwitch=False,CalcAreaFit=0,dAOpt=0,Verbose=False):
+    def __init__(self,D,RiverData,ConstrainHWSwitch=False,CalcAreaFitOpt=0,dAOpt=0,Verbose=False,σW=[]):
 
-        # CalcAreaFit=0 : don't calculate; CalcAreaFits=1 : use equal-spaced breakpoints; CalcAreaFits=2 : optimize breakpoints
-	# dAOpt=0 : use MetroMan style calculation; dAopt=1 : use SWOT L2 style calculation
+        """  Initialize ReachObservation Ojbect. 
+            Input Arguments:
+                CalcAreaFitOpt= 
+                    0 : don't calculate;  
+                    1 : use equal-spaced breakpoints; 
+                    2 : optimize breakpoints & fits together
+                    3 : optimize breakpoints, then optimize fits
+                dAOpt= 
+                    0 : use MetroMan style calculation; 
+                    1 : use SWOT L2 style calculation
+
+            Flow:
+                1. Assign data
+                2. Calc height-width fits
+                3. Constrain height-width data
+                4. Calculate areas
+        """
+
+        if ConstrainHWSwitch and CalcAreaFitOpt== 0:
+            print('If you want to use Fluvial Hypsometry constraint, you also need to do CalcAreaFitOpt > 0')
+            print('Stopping ReachObservations init function...')
+            return
         
         self.D=D    
-        self.CalcAreaFit=CalcAreaFit
+        self.CalcAreaFitOpt=CalcAreaFitOpt
         self.ConstrainHWSwitch=ConstrainHWSwitch
         self.Verbose=Verbose
-        
-        # assign data from input dictionary
-        self.h=RiverData["h"]           
-        self.w=RiverData["w"]
+
+        # 1 assign data from input dictionary
+        self.h=copy.deepcopy(RiverData["h"])        
+        self.w=copy.deepcopy(RiverData["w"])
         self.S=RiverData["S"]
         self.h0=RiverData["h0"]
         self.sigh=RiverData["sigh"]
-        self.sigw=RiverData["sigw"]
+        if not (σW):
+            self.sigw=RiverData["sigw"]
+        else:
+            self.sigw=σW
         self.sigS=RiverData["sigS"]    
 
-        # calculate Area (i.e. H-W) fits for 3 sub-domain using EIV model a la SWOT
-        if self.CalcAreaFit > 0:
+
+        # 2 calculate Area (i.e. H-W) fits for 3 sub-domain using EIV model a la SWOT
+        if self.CalcAreaFitOpt > 0:
             #caution! right now this only runs on reach 0 in this set. 
             self.CalcAreaFits()
+
+            # not sure what this was intended to do...
+            #if ("area_fit") not in globals() :
+            #    dAOpt=-1 
         
-        # constrain heights and widths to be self-consistent
+        # 3 constrain heights and widths to be self-consistent
         self.ConstrainHW()
+
+        if self.Verbose:
+            self.plotHW()
 
         # create resahepd versions of observations
         self.hv=reshape(self.h, (self.D.nR*self.D.nt,1) )
         self.Sv=reshape(self.S, (self.D.nR*self.D.nt,1) )
         self.wv=reshape(self.w, (self.D.nR*self.D.nt,1) )
         
-        # check area calculation option
+        # 4 calculate areas
+        #   check area calculation option
         if dAOpt==1 and ( "area" not in globals() ):
              if self.Verbose:
-                  print('Warning: ReachObservations tried to use SWOT-style area calcs, but no area function available. using MetroMan-style instead')
+                  print('Warning: ReachObservations tried to use', 
+                     'SWOT-style area calcs, but no area function available.')
+                  print('Using MetroMan-style instead')
              dAOpt=0
 
-        # calculate areas
+        # calculate
         if dAOpt == 0:
              if self.Verbose:
-                  print('MetroMan-style area calculations')
+                print('MetroMan-style area calculations')
              DeltaAHat=empty( (self.D.nR,self.D.nt-1) )
              self.DeltaAHatv = self.calcDeltaAHatv(DeltaAHat)
              self.dA= concatenate(  (zeros( (self.D.nR,1) ), DeltaAHat @ triu(ones( (self.D.nt-1,self.D.nt-1) ),0)),1 )
              self.dAv=self.D.CalcU() @ self.DeltaAHatv
         elif dAOpt == 1:
              if self.Verbose:
-                  print('SWOT-style area calculations')
+                print('SWOT-style area calculations')
              self.dA=empty( (self.D.nR,self.D.nt)   )
              for t in range(self.D.nt):
                  self.dA[0,t],what,hhat,dAUnc=area(self.h[0,t],self.w[0,t],self.area_fit)
-                 if ConstrainHWSwitch:
-                     self.h[0,t]=hhat
-                     self.w[0,t]=what
+                 #if ConstrainHWSwitch and not np.isnan(hhat):
+                 #    self.h[0,t]=hhat
+                 #    self.w[0,t]=what
              
+             if self.Verbose:
+                     self.plotHdA()
 
     def calcDeltaAHatv(self, DeltaAHat):
         
@@ -82,51 +119,128 @@ class ReachObservations:
     
     def ConstrainHW(self):
         
-        self.hobs=copy.deepcopy(self.h[0,:])
-        self.wobs=copy.deepcopy(self.w[0,:])
+        if self.CalcAreaFitOpt == 0:
+            # calculate single sub-domain height-width-area fits and project data
+            #   onto calculated line
+            self.hobs=copy.deepcopy(self.h[0,:])
+            self.wobs=copy.deepcopy(self.w[0,:])
 
-        #range-normalize data
-        x=self.hobs
-        y=self.wobs
-        x_range=max(x)-min(x)        
-        x_mean=mean(x) 
-        xn=(x-x_mean)/x_range
-        y_range=max(y)-min(y)        
-        y_mean=mean(y) 
-        yn=(y-y_mean)/y_range
+            #range-normalize data
+            x=self.hobs
+            y=self.wobs
+            x_range=max(x)-min(x)        
+            x_mean=mean(x) 
+            xn=(x-x_mean)/x_range
+            y_range=max(y)-min(y)        
+            y_mean=mean(y) 
+            yn=(y-y_mean)/y_range
         
-        #[m,b]=self.FitLOC(xn,yn)
-        [m,b]=self.FitEIV(xn,yn)
-        mo=-tan(pi/2-arctan(m))
+            #[m,b]=self.FitLOC(xn,yn)
+            [m,b]=self.FitEIV(xn,yn)
+            mo=-tan(pi/2-arctan(m))
  
-        #projet w,h onto LOC or EIV
-        hhatn=(yn-mo*xn-b)/(m-mo)
-        whatn=m*hhatn+b
+            #projet w,h onto LOC or EIV
+            hhatn=(yn-mo*xn-b)/(m-mo)
+            whatn=m*hhatn+b
 
-        #un-normalize data
-        hhat=hhatn*x_range+x_mean
-        what=whatn*y_range+y_mean
+            #un-normalize data
+            hhat=hhatn*x_range+x_mean
+            what=whatn*y_range+y_mean
 
-        hres=self.h[0,:]-hhat
-        wres=self.w[0,:]-what
+            hres=self.h[0,:]-hhat
+            wres=self.w[0,:]-what
 
-        self.stdh_LOChat=std(hres)
-        self.stdw_LOChat=std(wres)
+            self.stdh_LOChat=std(hres)
+            self.stdw_LOChat=std(wres)
 
-        if self.ConstrainHWSwitch:
-             self.h[0,:]=hhat
-             self.w[0,:]=what
+            if self.ConstrainHWSwitch:
+                 self.h[0,:]=hhat
+                 self.w[0,:]=what
+        else: # if there are three sub-domains
+            self.hobs=copy.deepcopy(self.h[0,:])
+            self.wobs=copy.deepcopy(self.w[0,:])
 
-    def plotHW(self):
+            hhat=np.empty((1,self.D.nt))
+            what=np.empty((1,self.D.nt))
+
+            for i in range(self.D.nt):
+                hhat[0,i],what[0,i]=self.MapPointToHypsometricCurve(self.hobs[i],self.wobs[i])
+
+            if self.ConstrainHWSwitch:
+                 self.h[0,:]=hhat[0,:]
+                 self.w[0,:]=what[0,:]
+
+            
+            self.area_fit['h_break'][0]=np.min(hhat)
+            self.area_fit['h_break'][3]=np.max(hhat)
+                
+
+    def MapPointToHypsometricCurve(self,h,w):
+        sds=[0,1,2]
+
+        hhat=np.nan
+        what=np.nan
+
+        for sd in sds:
+            hhatsd,whatsd = self.MapPointToSubDomain(sd,h,w)
+
+            #print('for subdomain',sd,'mapped point=',hhatsd,whatsd)
+
+            DataInSubdomain = (hhatsd >= self.area_fit['h_break'][sd] and hhatsd < self.area_fit['h_break'][sd+1] )
+            DataValidExtrapLow = (sd ==0 and hhatsd < self.area_fit['h_break'][0])
+            DataValidExtrapHi = (sd == 2 and hhatsd > self.area_fit['h_break'][2])
+            DataValidExtrap = DataValidExtrapHi or DataValidExtrapLow
+
+            if DataInSubdomain or DataValidExtrap:
+                hhat=hhatsd
+                what=whatsd
+
+        if np.isnan(hhat):
+            print('data point did not map to a valid sub-domain...')
+
+        return hhat,what
+                    
+            
+    def MapPointToSubDomain(self,sd,hobs,wobs):
+ 
+        p0=self.area_fit['fit_coeffs'][1,sd,0]  #intercept
+        p1=self.area_fit['fit_coeffs'][0,sd,0]  #slope
+
+        # use Fuller 1.3.17
+        vhat=wobs-p0-p1*hobs
+        suv=-p1*self.sigh**2 #could add a rho term here
+        svv=self.sigw**2 + p1**2 * self.sigh**2 #could add a rho term here
+
+        hhatsd=hobs-suv/svv*vhat
+        whatsd=p0+p1*hhatsd
+
+        return hhatsd,whatsd
+
+    def plotHW(self,plottitle=[]):
+
+        #plt.style.use('tableau-colorblind10')
+
         fig,ax = plt.subplots()
+
+        if hasattr(self,'area_fit'):
+
+            for sd in range(3):
+                htest=linspace(self.area_fit['h_break'][sd],self.area_fit['h_break'][sd+1],10)
+                wtest=self.area_fit['fit_coeffs'][0,sd,0]*htest+self.area_fit['fit_coeffs'][1,sd,0]
+                #plt.plot(htest,wtest,color='C0')
+                plt.plot(htest,wtest,color='tab:orange')
         
         if self.ConstrainHWSwitch:
+            for i in range(self.D.nt):
+                ax.plot([self.hobs[i],self.h[0,i]],[self.wobs[i],self.w[0,i]],color='grey')
             ax.scatter(self.hobs,self.wobs,marker='o')   
             ax.scatter(self.h[0,:],self.w[0,:],marker='o')   
         else: 
             ax.scatter(self.h[0,:],self.w[0,:],marker='o')   
-            
-        plt.title('WSE vs width for first reach')
+
+
+        if bool(plottitle):
+            plt.title(plottitle)
         plt.xlabel('WSE, m')
         plt.ylabel('Width, m')      
         plt.show() 
@@ -209,21 +323,29 @@ class ReachObservations:
         #0 check uncertainties
         if self.sigw<0:
              self.sigw=10 
+        igoodh=np.logical_not(np.isnan(self.h[r,:]))
+        igoodw=np.logical_not(np.isnan(self.w[r,:]))
+        igoodhw=np.logical_and(igoodh,igoodw)
+
+        if not any(igoodhw):
+            print('No good data. Not computing height-width fits.')
+            return
 
         #1 choose initial parameters for outer loop
-        WSEmin=min(self.h[r,:])
-        WSEmax=max(self.h[r,:])
+
+        WSEmin=min(self.h[r,igoodhw])
+        WSEmax=max(self.h[r,igoodhw])
         WSErange=WSEmax-WSEmin
         WSErange=WSEmax-WSEmin
         init_params_outer=[WSEmin+WSErange/3, WSEmin+2*WSErange/3]
 
         #2 compute a solution where we set the breakpoints at 1/3 of the way through the domain
         ReturnSolution=True
-        Jset,p_inner_set=SSE_outer(init_params_outer,self.h[r,:],self.w[r,:],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+        Jset,p_inner_set=SSE_outer(init_params_outer,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
 
-        if self.Verbose:
-            print('height-width fit for set breakpoints')
-            plot3SDfit(self.h[r,:],self.w[r,:],p_inner_set,init_params_outer)
+        #if self.Verbose:
+        #    print('height-width fit for set breakpoints')
+        #    plot3SDfit(self.h[r,:],self.w[r,:],p_inner_set,init_params_outer)
 
         #3 optimize both inner and outer loop simultaneously
 
@@ -244,7 +366,7 @@ class ReachObservations:
         constraint2=optimize.LinearConstraint(A,-inf,-0.1)    
 
         #3.3 nested solution to three-subdomain fit
-        if self.CalcAreaFit == 2:
+        if self.CalcAreaFitOpt == 2:
             #3.3.1 optimize breakpoints
             ReturnSolution=False
             res = optimize.minimize(fun=SSE_outer,
@@ -255,21 +377,18 @@ class ReachObservations:
                     constraints=constraint2,
                     options={'disp':self.Verbose,'maxiter':1e2,'verbose':0})
 
-            if self.Verbose:
-                 print('Optimizer finished to find H-W breakpoints. Status=',res.success)
-
             params_outer_hat=res.x
 
             #3.3.2 compute optimal fits for optimal breakpoints
             ReturnSolution=True
             [Jnest,params_inner_nest]=SSE_outer(params_outer_hat,self.h[r,:],self.w[r,:],ReturnSolution,self.sigh,self.sigw,self.Verbose)
 
-            if self.Verbose:
-                 print('height-width fit for nested optimization')
-                 plot3SDfit(self.h[r,:],self.w[r,:],params_inner_nest,params_outer_hat)
+#            if self.Verbose:
+#                 print('height-width fit for nested optimization')
+#                 plot3SDfit(self.h[r,:],self.w[r,:],params_inner_nest,params_outer_hat)
 
         #3.3.3 determine whether to use optimal breakpoint solution or equal-spaced breakpoints 
-        if self.CalcAreaFits == 2  and(res.success or (Jnest<Jset)):
+        if self.CalcAreaFitOpt == 2  and(res.success or (Jnest<Jset)):
              print('nested optimiztion sucess:',res.success)
              print('nested objective:',Jnest)
              print('set objective function:',Jset)
@@ -280,13 +399,53 @@ class ReachObservations:
              self.Hbp=init_params_outer
              self.HWparams= p_inner_set
 
+        #3.4 compute simple optimal breakpoints, then compute fits
+        if self.CalcAreaFitOpt == 3:
+             #3.4.1 optimize breakpoints 
+             def piecewise_linear2(x, x0, y0, x1, k1, k2, k3):
+                 return piecewise(x, [x < x0, ((x>=x0)&(x<x1)), x>=x1], \
+                     [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0, lambda x:k3*x + k2*x1+y0-k2*x0-k3*x1])
+
+             p2 , e2 = optimize.curve_fit(piecewise_linear2, self.h[r,igoodhw], self.w[r,igoodhw],\
+                     bounds=([lb[0],-inf,lb[0],0,0,0],[ub[0],inf,ub[0],inf,inf,inf]),\
+                     p0=[init_params_outer[0],mean(self.w[r,igoodhw]),init_params_outer[1],0,0,0] )
+ 
+             #this specifies the two WSE breakpoints
+             params_outer_hat=[p2[0],p2[2]]
+
+             #3.4.2 compute parameters
+             ReturnSolution=True
+             Jsimple,p_inner_simple=SSE_outer(params_outer_hat,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+
+             #if self.Verbose:
+             #    print('height-width fit for simple optimized breakpoints')
+             #    plot3SDfit(self.h[r,:],self.w[r,:],p_inner_simple,params_outer_hat)
+ 
+             #3.4.3 determine whether to use optimal breakpoint solution or equal-spaced breakpoints 
+             #if self.Verbose:
+                  #print('simple objective:',Jsimple)
+                  #print('set objective function:',Jset)
+             if  Jsimple<Jset or p2[0]>p2[2]:
+                     
+                  if self.Verbose:
+                       if p2[0]>p2[2]:
+                            print('p2[0]>p2[2]. p2[0]=',p2[0],'p2[2]=',p2[2])
+                       print('using simple solution')
+                  self.Hbp=params_outer_hat
+                  self.HWparams=p_inner_simple
+             else:
+                  if self.Verbose:
+                       print('using set breakpoints ')
+                  self.Hbp=init_params_outer
+                  self.HWparams= p_inner_set
+
         #4 pack up fit parameter data matching swot-format 
         #4.0 initialize
         area_fit={}
         #4.1 set the dataset stats
-        area_fit['h_variance']=array(var(self.h[r,:]))
-        area_fit['w_variance']=array(var(self.w[r,:]))
-        hwcov=cov(self.w[r,:],self.h[r,:])
+        area_fit['h_variance']=array(var(self.h[r,igoodhw]))
+        area_fit['w_variance']=array(var(self.w[r,igoodhw]))
+        hwcov=cov(self.w[r,igoodhw],self.h[r,igoodhw])
         area_fit['hw_covariance']=hwcov[0,1]
         area_fit['med_flow_area']=array(0.) #this value estimated as described below 
         area_fit['h_err_stdev']=array(self.sigh)
@@ -317,8 +476,8 @@ class ReachObservations:
         # a bit confusing, but we are centering the dA on the median H. so to get a dA value that
         # coresponds to Hbar, we set dA_hbar to zero, then evaluate the area fit at a value of 
         # Hbar. That returns the area value at median H that we use going forward
-        Hbar=median(self.h[r,:])
-        wbar=median(self.w[r,:])
+        Hbar=nanmedian(self.h[r,:])
+        wbar=nanmedian(self.w[r,:])
 
         dA_Hbar,hhat,what,dAunc=area(Hbar, wbar, area_fit)
 
@@ -326,6 +485,9 @@ class ReachObservations:
 
         #4.6 save fit data
         self.area_fit=area_fit
+
+        #if self.Verbose:
+            #print('area fit parameters=',self.area_fit)
 
         return 
 
@@ -380,14 +542,14 @@ def SSE_outer(param_outer,h,w,ReturnSolution,sigh,sigw,Verbose):
     def SSE_inner(inner_params,xbreak,h,w,sigh,sigw):            
         
         i0=h<xbreak[0]                
-        J0=(sigw**2 + inner_params[0]**2 * sigh**2)**-1*sum((h[i0]*inner_params[0]+inner_params[1]-w[i0])**2 )
+        J0=(sigw**2 + inner_params[0]**2 * sigh**2)**-1*sum((h[i0]*inner_params[0]+inner_params[1]-w[i0])**2 ) #1.3.20 in Fuller
         i1=(h>=xbreak[0]) & (h<xbreak[1])
         J1=(sigw**2 + inner_params[2]**2 * sigh**2)**-1*sum((h[i1]*inner_params[2]+inner_params[3]-w[i1])**2 )    
         i2=h>=xbreak[1]
         J2=(sigw**2 + inner_params[4]**2 * sigh**2)**-1*sum((h[i2]*inner_params[4]+inner_params[5]-w[i2])**2 )    
         
         J=J0+J1+J2    
-        
+
         return J
  
     def cons0_f(x):        
@@ -411,7 +573,8 @@ def SSE_outer(param_outer,h,w,ReturnSolution,sigh,sigw,Verbose):
                     bounds=param_bounds_inner,
                     method='trust-constr',
                     constraints=constraints,
-                    options={'disp':ShowDetailedOutput,'maxiter':1e3,'verbose':0})    
+                    #options={'disp':ShowDetailedOutput,'maxiter':1e3,'verbose':0})    
+                    options={'disp':False,'maxiter':1e3,'verbose':0})    
 
     if ReturnSolution:    
         return res.fun,res.x

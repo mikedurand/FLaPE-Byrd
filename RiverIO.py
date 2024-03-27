@@ -76,7 +76,11 @@ class RiverIO:
         self.ObsData["sigS"]=eval(infile[16+self.ObsData["nR"]*3])/1e5; #convert cm/km -> m/m
         self.ObsData["sigh"]=eval(infile[18+self.ObsData["nR"]*3])/1e2; #convert cm -> m
         self.ObsData["sigw"]=eval(infile[20+self.ObsData["nR"]*3] )
-        
+
+        # try removing data with nans
+        iUse= logical_not(isnan(self.ObsData['h'][0,:]))
+        self.SubSelectData(iUse)
+
     def ReadMetroManTruth(self):
         
         if not self.ObsData:
@@ -93,24 +97,22 @@ class RiverIO:
         buf=infile[5]; self.TruthData["n"]=buf #not fully implemented; only affects MetroMan plotting routines
 
         self.TruthData["Q"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
-        # reading dA, h, and W truth variables not yet implemented
-        # self.dA=empty( (D.nR,D.nt)  ) #cross-sectional area change [m^3/s]
-        # self.W=empty( (D.nR,D.nt)  ) #width [m]
-        # self.h=empty( (D.nR,D.nt)  ) #wse [m]
+        self.TruthData["dA"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["h"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["w"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
         
         for i in range(0,self.ObsData["nR"]):
             buf=infile[i+7]; buf=buf.split(); self.TruthData["Q"][i,:]=array(buf,float) 
-            # reading dA, h, and W truth variables not yet implemented
-            # buf_dA=infile[i+8+D.nR]; buf_dA=buf_dA.split(); Tru.dA[i,:]=array(buf_dA,float)
-            # buf_h=infile[i+9+2*D.nR]; buf_h=buf_h.split(); Tru.h[i,:]=array(buf_h,float)
-            # buf_W=infile[i+10+3*D.nR]; buf_W=buf_W.split(); Tru.W[i,:]=array(buf_W,float)
+            buf_dA=infile[i+8+self.ObsData["nR"]]; buf_dA=buf_dA.split(); self.TruthData["dA"][i,:]=array(buf_dA,float)
+            buf_h=infile[i+9+2*self.ObsData["nR"]]; buf_h=buf_h.split(); self.TruthData["h"][i,:]=array(buf_h,float)
+            buf_W=infile[i+10+3*self.ObsData["nR"]]; buf_W=buf_W.split(); self.TruthData["w"][i,:]=array(buf_W,float)
      
     def SubSelectData(self,iUse):
        self.ObsData["nt"]=sum(iUse)           
        self.ObsData["h"]= self.ObsData["h"][:,iUse]
        self.ObsData["w"]= self.ObsData["w"][:,iUse]
        self.ObsData["S"]= self.ObsData["S"][:,iUse]
-       self.ObsData["t"]= self.ObsData["t"][iUse]
+       #self.ObsData["t"]= self.ObsData["t"][iUse]
        #self.TruthData["Q"]= self.TruthData["Q"][:,iUse]
         
     def ReadConfluenceObs(self):

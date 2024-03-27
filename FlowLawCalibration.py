@@ -7,7 +7,7 @@ Created on Thu Jan 21 04:49:20 2021
 """
 
 from scipy import optimize
-from numpy import zeros,empty,nan,mean
+from numpy import zeros,empty,nan,mean,log,exp,polyfit,array
 from ErrorStats import ErrorStats
 
 import matplotlib.pyplot as plt
@@ -24,18 +24,31 @@ class FlowLawCalibration:
         self.Qhat=[]
         self.Performance={}
 
-    def CalibrateReach(self,verbose=True,optmethod='trust-constr',suppress_warnings=False):     
+    def CalibrateReach(self,verbose=True,optmethod='L-BFGS-B',suppress_warnings=False):     
   
         if suppress_warnings:
             warnings.filterwarnings("ignore")
         
-        # self.param_est=zeros( (self.D.nR,2) )
         self.success= zeros( 1, dtype=bool )
         self.Qhat=zeros( (1,self.D.nt) )    
-                   
+
         init_params=self.FlowLaw.GetInitParams()
         fl_param_bounds=self.FlowLaw.GetParamBounds()         
 
+        # 1 first try for AHGW only, try using the numpy 'polyfit' function 
+        self.success=False
+        ls_success=False
+        if self.FlowLaw.name ==  'AHGW':
+            a,b=self.LeastSquaresFit(self.FlowLaw.W,self.Qtrue)
+
+            if a >= fl_param_bounds[0][0] and a <= fl_param_bounds[0][1] \
+               and b >= fl_param_bounds[1][0] and b <= fl_param_bounds[1][1]:
+       
+               ls_success=True
+               self.success=True
+               print('... AHGW: polyfit worked!')
+ 
+        # intialize for other calibration
         np=len(init_params)
   
         lb=zeros(np,)
@@ -50,21 +63,56 @@ class FlowLawCalibration:
 
         param_bounds=optimize.Bounds(lb,ub)
 
-        print('Qtrue=',self.Qtrue)
-        print('width=',self.FlowLaw.W)
-        print('initial flow law parameters=',init_params)
-        print('Jacobian at initial parameters=',self.FlowLaw.Jacobian(init_params,self.Qtrue) )
-
-        #note can set verbose option to 3 for debugging
-        res = optimize.minimize(fun=self.ObjectiveFunc,
+        # 2 try optimize 'least_squares' function
+        if not self.success:
+            res = optimize.least_squares(self.ObjectiveFuncRes,
+                                init_params,
+                                args=([self.Qtrue]),
+                                bounds=param_bounds)
+ 
+            if res.success:
+                print('... the least_squares solution worked')
+                self.success=True
+ 
+        # 3 try the L-BFGS-B function
+        if not self.success:
+            print('... least_squares failed. Now trying with L-BFGS-B')
+            res = optimize.minimize(fun=self.ObjectiveFunc,
                                 x0=init_params,
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
-                                jac=self.FlowLaw.Jacobian,
-                                options={'disp':verbose,'maxiter':1e4,'verbose':0})
+                                jac=self.FlowLaw.Jacobian)
+            if res.success:
+                print('... L-BFGS-B succeeded!')
+                self.success=True
 
-        if not res.success:
+        if not self.success:
+            print('... default algo failed. trying with finite-difference jacobian')
+            res = optimize.minimize(fun=self.ObjectiveFunc,
+                                x0=init_params,
+                                args=(self.Qtrue),
+                                bounds=param_bounds,
+                                method=optmethod,
+                                jac='none')
+            if res.success:
+                print('... one of the backup algorithm succeeded!')
+                self.success=True
+ 
+        if not self.success:
+            print('... default algo with f-d jacobian failed. trying another algorithm')
+            res = optimize.minimize(fun=self.ObjectiveFunc,
+                                x0=init_params,
+                                args=(self.Qtrue),
+                                bounds=param_bounds,
+                                method='trust-constr',
+                                jac=self.FlowLaw.Jacobian)
+            if res.success:
+                print('... one of the backup algorithm succeeded!')
+                self.success=True
+                            
+
+        if not self.success:
             #retry with bounds required to stay feasible
             param_bounds=optimize.Bounds(lb,ub,keep_feasible=True)
             
@@ -75,8 +123,11 @@ class FlowLawCalibration:
                                 method=optmethod,
                                 jac=self.FlowLaw.Jacobian,
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0})
+            if res.success:
+                print('... one of the backup algorithm succeeded!')
+                self.success=True
         
-        if not res.success:
+        if not self.success:
              #retry with a larger step size
              res = optimize.minimize(fun=self.ObjectiveFunc,
                                 x0=init_params,
@@ -85,16 +136,23 @@ class FlowLawCalibration:
                                 method=optmethod,
                                 jac=self.FlowLaw.Jacobian,
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0,'finite_diff_rel_step':1.0})
- 
-        self.success=res.success
+             if res.success:
+                print('... one of the backup algorithm succeeded!')
+                self.success=True
+
+        # ok done trying algorithms... 
+        #self.success=res.success
 
         if not self.success:
             print('FlowLawCalibration: Optimize Failed! Setting flow law parameters to nan')
             self.param_est=empty( len(fl_param_bounds), )
             self.param_est[:]=nan
         else:
-            self.param_est=res.x
-            
+            if ls_success:
+                self.param_est=array([a,b])
+            else:
+                self.param_est=res.x
+
         self.Qhat=self.FlowLaw.CalcQ(self.param_est)      
         
         self.Performance=ErrorStats(self.Qtrue,self.Qhat,self.D)
@@ -105,6 +163,25 @@ class FlowLawCalibration:
         Qhat=self.FlowLaw.CalcQ(params)
         y=sum((Qhat-Q)**2)
         return y
+
+    def ObjectiveFuncRes(self,params,Q):      
+        Qhat=self.FlowLaw.CalcQ(params)
+        y=Qhat-Q
+        return y
+
+    def LeastSquaresFit(self,O,Q):
+        # O = observations, either H or W
+        # Q = discharge
+
+        y=log(Q)
+        x=log(O)
+    
+        p=polyfit(x,y,1)
+    
+        a=exp(p[1])
+        b=p[0]
+    
+        return a,b
 
 
     def PlotTimeseries(self,PlotTitle='',SaveFilename='',ShowLegend=True):

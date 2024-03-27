@@ -10,7 +10,7 @@ from numpy import inf,sqrt,mean,std,zeros_like,log
 
 class FlowLaws:
     
-    def __init__(self,dA,W,S,H):
+    def __init__(self,dA,W,S,H,name='No Name'):
         self.dA=dA
         self.W=W
         self.S=S       
@@ -18,6 +18,8 @@ class FlowLaws:
         
         self.params=[]
         self.init_params=[]                
+
+        self.name=name
         
 class MWACN(FlowLaws):
     # this flow law is Manning's equation, wide-river approximation, area-formulation, 
@@ -131,16 +133,18 @@ class AHGW(FlowLaws):
     # this flow law is at-a-station hydraulic geometry for width
     #    Q=aW**b params=a,b
     def __init__(self,dA,W,S,H):
-        super().__init__(dA,W,S,H)     
+        super().__init__(dA,W,S,H,'AHGW')     
     def CalcQ(self,params):
         Q=params[0]*self.W**params[1]
         return Q
     def GetInitParams(self):
-        init_params=[0.5,0.25]
+        #init_params=[0.5,1.]
+        init_params=[0.5,1.]
         return init_params       
     def GetParamBounds(self):
         #etc
-        param_bounds=( (0.01,inf),(0.01,50.0) )
+        #param_bounds=(( 0.000001,inf),(0.01,100.0) )
+        param_bounds=(( -inf,inf),(0.01,100.0) )
         return param_bounds               
     def Jacobian(self,params,Qt):
         dydp=zeros_like(params)
@@ -153,7 +157,7 @@ class AHGD(FlowLaws):
     #    it is identical to typical rating curves
 
     def __init__(self,dA,W,S,H):
-        super().__init__(dA,W,S,H)     
+        super().__init__(dA,W,S,H,'AHGD')     
     def CalcQ(self,params):
         Q=params[0]*(self.H-params[1])**params[2]
         return Q
@@ -185,7 +189,7 @@ class MOMMA(FlowLaws):
         return Q
     def GetInitParams(self):
         Bmax=min(self.H)-0.1
-        init_params=[0.03,mean(H),Bmax-1.0,0.5]
+        init_params=[0.03,mean(self.H),Bmax-1.0,0.5]
         return init_params       
     def GetParamBounds(self):
         #etc
