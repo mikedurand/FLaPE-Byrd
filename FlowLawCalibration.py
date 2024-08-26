@@ -82,7 +82,8 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
-                                jac=self.FlowLaw.Jacobian)
+                                #jac=self.FlowLaw.Jacobian)
+                                jac='none')
             if res.success:
                 print('... L-BFGS-B succeeded!')
                 self.success=True
@@ -106,7 +107,8 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method='trust-constr',
-                                jac=self.FlowLaw.Jacobian)
+                                jac='none')
+                                #jac=self.FlowLaw.Jacobian)
             if res.success:
                 print('... one of the backup algorithm succeeded!')
                 self.success=True
@@ -121,7 +123,8 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
-                                jac=self.FlowLaw.Jacobian,
+                                #jac=self.FlowLaw.Jacobian,
+                                jac='none',
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0})
             if res.success:
                 print('... one of the backup algorithm succeeded!')
@@ -134,7 +137,8 @@ class FlowLawCalibration:
                                 args=(self.Qtrue),
                                 bounds=param_bounds,
                                 method=optmethod,
-                                jac=self.FlowLaw.Jacobian,
+                                #jac=self.FlowLaw.Jacobian,
+                                jac='none',
                                 options={'disp':verbose,'maxiter':1e4,'verbose':0,'finite_diff_rel_step':1.0})
              if res.success:
                 print('... one of the backup algorithm succeeded!')
