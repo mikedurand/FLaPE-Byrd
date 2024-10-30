@@ -171,8 +171,8 @@ class ReachObservations:
                  self.w[0,:]=what[0,:]
 
             
-            self.area_fit['h_break'][0]=np.min(hhat)
-            self.area_fit['h_break'][3]=np.max(hhat)
+            self.area_fit['h_break'][0]=np.nanmin(hhat)
+            self.area_fit['h_break'][3]=np.nanmax(hhat)
                 
 
     def MapPointToHypsometricCurve(self,h,w):
@@ -197,6 +197,27 @@ class ReachObservations:
 
         if np.isnan(hhat):
             print('data point did not map to a valid sub-domain...')
+
+            # Find closest breakpoint to h
+            close_break = np.argmin(np.abs(self.area_fit['h_break'] - h))
+
+            # If hhat is beyond the maximum observed h, map point to final breakpoint
+            if close_break == 3:
+
+                # Retrieve final region fit
+                p0 = self.area_fit['fit_coeffs'][1, close_break-1, 0]  # intercept
+                p1 = self.area_fit['fit_coeffs'][0, close_break-1, 0]  # slope
+
+            # Get fit from region nearest to h
+            else:
+
+                # Retrieve region fit
+                p0 = self.area_fit['fit_coeffs'][1, close_break, 0]  # intercept
+                p1 = self.area_fit['fit_coeffs'][0, close_break, 0]  # slope
+
+            # Map point to intersection of subdomain fit and breakpoint
+            hhat = self.area_fit['h_break'][close_break]
+            what = p0 + p1 * hhat
 
         return hhat,what
                     
@@ -464,10 +485,10 @@ class ReachObservations:
 
         #4.3 set h_break
         area_fit['h_break']=zeros((4,1))
-        area_fit['h_break'][0]=min(self.h[r,:])
+        area_fit['h_break'][0]=np.nanmin(self.h[r,:])
         area_fit['h_break'][1]=self.Hbp[0]
         area_fit['h_break'][2]=self.Hbp[1]
-        area_fit['h_break'][3]=max(self.h[r,:])
+        area_fit['h_break'][3]=np.nanmax(self.h[r,:])
 
         #4.4 set w_break... though i do not think this get used so just initializing for now
         area_fit['w_break']=zeros((4,1))
