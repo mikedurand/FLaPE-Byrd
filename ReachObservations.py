@@ -446,19 +446,18 @@ class ReachObservations:
              #if self.Verbose:
                   #print('simple objective:',Jsimple)
                   #print('set objective function:',Jset)
-             if  Jsimple<Jset or p2[0]>p2[2]:
-                     
-                  if self.Verbose:
-                       if p2[0]>p2[2]:
-                            print('p2[0]>p2[2]. p2[0]=',p2[0],'p2[2]=',p2[2])
-                       print('using simple solution')
-                  self.Hbp=params_outer_hat
-                  self.HWparams=p_inner_simple
+             if Jset < Jsimple or p2[0] > p2[2]:  
+                 if self.Verbose:
+                     if p2[0] > p2[2]:
+                         print('p2[0]>p2[2]. p2[0]=', p2[0], 'p2[2]=', p2[2])
+                     print('using set breakpoint fit')
+                 self.Hbp = init_params_outer
+                 self.HWparams = p_inner_set
              else:
-                  if self.Verbose:
-                       print('using set breakpoints ')
-                  self.Hbp=init_params_outer
-                  self.HWparams= p_inner_set
+                 if self.Verbose:
+                     print('using simple solution ')
+                 self.Hbp = params_outer_hat
+                 self.HWparams = p_inner_simple
 
         #4 pack up fit parameter data matching swot-format 
         #4.0 initialize
