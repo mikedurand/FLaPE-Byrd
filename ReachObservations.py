@@ -427,16 +427,26 @@ class ReachObservations:
                  return piecewise(x, [x < x0, ((x>=x0)&(x<x1)), x>=x1], \
                      [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0, lambda x:k3*x + k2*x1+y0-k2*x0-k3*x1])
 
-             p2 , e2 = optimize.curve_fit(piecewise_linear2, self.h[r,igoodhw], self.w[r,igoodhw],\
-                     bounds=([lb[0],-inf,lb[0],0,0,0],[ub[0],inf,ub[0],inf,inf,inf]),\
-                     p0=[init_params_outer[0],mean(self.w[r,igoodhw]),init_params_outer[1],0,0,0] )
- 
-             #this specifies the two WSE breakpoints
-             params_outer_hat=[p2[0],p2[2]]
-
-             #3.4.2 compute parameters
-             ReturnSolution=True
-             Jsimple,p_inner_simple=SSE_outer(params_outer_hat,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+             try:
+                 p2 , e2 = optimize.curve_fit(piecewise_linear2, self.h[r,igoodhw], self.w[r,igoodhw],\
+                         bounds=([lb[0],-inf,lb[0],0,0,0],[ub[0],inf,ub[0],inf,inf,inf]),\
+                         p0=[init_params_outer[0],mean(self.w[r,igoodhw]),init_params_outer[1],0,0,0] )
+     
+                 #this specifies the two WSE breakpoints
+                 params_outer_hat=[p2[0],p2[2]]
+    
+                 #3.4.2 compute parameters
+                 ReturnSolution=True
+                 Jsimple,p_inner_simple=SSE_outer(params_outer_hat,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+                 
+             # If optimal parameters can't be found, use set breakpoint fit
+             except RuntimeError as e:
+                print("Optimization failed, using set breakpoint fit.")
+                # Enforce set fit due to failed optimization (Jset = -3)
+                Jset = -3
+                Jsimple = -2
+                # Set p2 placeholder values
+                p2 = [0, 0, 0]
 
              #if self.Verbose:
              #    print('height-width fit for simple optimized breakpoints')
