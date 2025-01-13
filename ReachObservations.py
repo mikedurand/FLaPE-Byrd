@@ -363,6 +363,27 @@ class ReachObservations:
         #2 compute a solution where we set the breakpoints at 1/3 of the way through the domain
         ReturnSolution=True
         Jset,p_inner_set=SSE_outer(init_params_outer,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+        
+        # If set fit is implausible (slopes exceed arbitrary value), impose rectangular fit at median width
+        if p_inner_set[0] > 10000 or p_inner_set[2] > 10000 or p_inner_set[4] > 10000:
+            print('Implausible set fit. Implementing rectangular fit.')
+
+            # Find median of widths
+            med_width = np.nanmedian(self.w[r, igoodhw])
+
+            # Set p_inner_set parameters to rectangular fit at median width
+            p_inner_set[0] = 0  # slope R1
+            p_inner_set[1] = med_width  # intercept R1
+            p_inner_set[2] = 0  # slope R2
+            p_inner_set[3] = med_width  # intercept R2
+            p_inner_set[4] = 0  # slope R3
+            p_inner_set[5] = med_width  # intercept R3
+
+            # Enforce rectangular fit due to implausible set fit (Jset = -1)
+            Jset = -1
+            Jsimple = 0
+            # Set placeholder variables for p2
+            p2 = [0, 0, 0]
 
         #if self.Verbose:
         #    print('height-width fit for set breakpoints')
@@ -422,52 +443,64 @@ class ReachObservations:
 
         #3.4 compute simple optimal breakpoints, then compute fits
         if self.CalcAreaFitOpt == 3:
-             #3.4.1 optimize breakpoints 
-             def piecewise_linear2(x, x0, y0, x1, k1, k2, k3):
-                 return piecewise(x, [x < x0, ((x>=x0)&(x<x1)), x>=x1], \
-                     [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0, lambda x:k3*x + k2*x1+y0-k2*x0-k3*x1])
 
-             try:
-                 p2 , e2 = optimize.curve_fit(piecewise_linear2, self.h[r,igoodhw], self.w[r,igoodhw],\
-                         bounds=([lb[0],-inf,lb[0],0,0,0],[ub[0],inf,ub[0],inf,inf,inf]),\
-                         p0=[init_params_outer[0],mean(self.w[r,igoodhw]),init_params_outer[1],0,0,0] )
-     
-                 #this specifies the two WSE breakpoints
-                 params_outer_hat=[p2[0],p2[2]]
+            # If rectangular fit imposed during set fit (Jset = -1), don't implement simple fit
+            if Jset != -1:
+
+                #3.4.1 optimize breakpoints 
+                def piecewise_linear2(x, x0, y0, x1, k1, k2, k3):
+                        return piecewise(x, [x < x0, ((x>=x0)&(x<x1)), x>=x1],
+                                         [lambda x:k1*x + y0-k1*x0, lambda x:k2*x + y0-k2*x0, lambda x:k3*x + k2*x1+y0-k2*x0-k3*x1])
+
+                try:
+                    p2 , e2 = optimize.curve_fit(piecewise_linear2, self.h[r,igoodhw], self.w[r,igoodhw],
+                            bounds=([lb[0],-inf,lb[0],0,0,0],[ub[0],inf,ub[0],inf,inf,inf]),
+                            p0=[init_params_outer[0],mean(self.w[r,igoodhw]),init_params_outer[1],0,0,0] )
+         
+                    #this specifies the two WSE breakpoints
+                    params_outer_hat=[p2[0],p2[2]]
+
+                    #3.4.2 compute parameters
+                    ReturnSolution=True
+                    Jsimple,p_inner_simple=SSE_outer(params_outer_hat,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
+                     
+                    # If simple fit is implausible (slopes exceed arbitrary value), use set breakpoint fit
+                    if p_inner_simple[0] > 10000 or p_inner_simple[2] > 10000 or p_inner_simple[4] > 10000: 
+                        print('Implausible simple fit. Implementing set fit.')
+                         
+                        # Enforce set fit due to implausible simple fit (Jset = -2)
+                        Jset = -2
+
+                # If optimal parameters can't be found, use set breakpoint fit
+                except RuntimeError as e:
+                    print("Optimization failed, using set breakpoint fit.")
+                    # Enforce set fit due to failed optimization (Jset = -3)
+                    Jset = -3
+                    Jsimple = -2
+                    # Set p2 placeholder values
+                    p2 = [0, 0, 0]
     
-                 #3.4.2 compute parameters
-                 ReturnSolution=True
-                 Jsimple,p_inner_simple=SSE_outer(params_outer_hat,self.h[r,igoodhw],self.w[r,igoodhw],ReturnSolution,self.sigh,self.sigw,self.Verbose)
-                 
-             # If optimal parameters can't be found, use set breakpoint fit
-             except RuntimeError as e:
-                print("Optimization failed, using set breakpoint fit.")
-                # Enforce set fit due to failed optimization (Jset = -3)
-                Jset = -3
-                Jsimple = -2
-                # Set p2 placeholder values
-                p2 = [0, 0, 0]
-
-             #if self.Verbose:
-             #    print('height-width fit for simple optimized breakpoints')
-             #    plot3SDfit(self.h[r,:],self.w[r,:],p_inner_simple,params_outer_hat)
- 
-             #3.4.3 determine whether to use optimal breakpoint solution or equal-spaced breakpoints 
-             #if self.Verbose:
-                  #print('simple objective:',Jsimple)
-                  #print('set objective function:',Jset)
-             if Jset < Jsimple or p2[0] > p2[2]:  
-                 if self.Verbose:
-                     if p2[0] > p2[2]:
-                         print('p2[0]>p2[2]. p2[0]=', p2[0], 'p2[2]=', p2[2])
-                     print('using set breakpoint fit')
-                 self.Hbp = init_params_outer
-                 self.HWparams = p_inner_set
-             else:
-                 if self.Verbose:
-                     print('using simple solution ')
-                 self.Hbp = params_outer_hat
-                 self.HWparams = p_inner_simple
+                #if self.Verbose:
+                #    print('height-width fit for simple optimized breakpoints')
+                #    plot3SDfit(self.h[r,:],self.w[r,:],p_inner_simple,params_outer_hat)
+     
+                #3.4.3 determine whether to use optimal breakpoint solution or equal-spaced breakpoints 
+                #if self.Verbose:
+                    # print('simple objective:',Jsimple)
+                    # print('set objective function:',Jset)
+                      
+            if Jset < Jsimple or p2[0] > p2[2]:  
+                if self.Verbose:
+                    if p2[0] > p2[2]:
+                        print('p2[0]>p2[2]. p2[0]=', p2[0], 'p2[2]=', p2[2])
+                    print('using set breakpoint fit')
+                self.Hbp = init_params_outer
+                self.HWparams = p_inner_set
+            else:
+                if self.Verbose:
+                    print('using simple solution ')
+                self.Hbp = params_outer_hat
+                self.HWparams = p_inner_simple
 
         #4 pack up fit parameter data matching swot-format 
         #4.0 initialize
