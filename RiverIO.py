@@ -6,14 +6,14 @@ Created on Fri Jan 15 13:09:29 2021
 @author: mtd
 """
 
-from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not,shape,transpose,logical_and,delete,logical_or,sum,nonzero,arange,linspace
+from numpy import array,diff,ones,reshape,empty,nan,isnan,where,logical_not,shape,transpose,logical_and,delete,logical_or,sum,nonzero,arange,linspace,mean
 from netCDF4 import Dataset
 import pandas as pd
 import datetime
 
 class RiverIO:
-    # def __init__(self,IOtype,obsFname):
-    def __init__(self,IOtype,**fnames):        
+    #def __init__(self,IOtype,**fnames):
+    def __init__(self,IOtype,slope_opt='slope',**fnames):
         self.type=IOtype        
         self.ObsData={}    
         self.TruthData={}
@@ -37,6 +37,10 @@ class RiverIO:
             if 'obsFname' in fnames.keys():
                 self.obsFname=fnames["obsFname"]
                 self.ParsePandasDF()
+        elif self.type == 'Hydrochron+Gage':
+            if 'obsFname' in fnames.keys():
+                self.obsFname=fnames["obsFname"]
+                self.ParseHydrochronGageDF(slope_opt)
         else:
             print("RiverIO: Undefined observation data format specified. Data not read.")
         
@@ -248,5 +252,41 @@ class RiverIO:
         self.ObsData["w"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
         self.ObsData["h"][0,:]=reshape(hwdata[heightcol].values,(1,self.ObsData["nt"])) 
         self.ObsData["w"][0,:]=reshape(hwdata[widthcol].values,(1,self.ObsData["nt"])) 
-        
+    def ParseHydrochronGageDF(self,slope_opt):
 
+        #print('slope option=',slope_opt)
+
+        hwsdata=pd.read_csv(self.obsFname)
+        
+        # meta 
+        self.ObsData["nt"]=len(hwsdata)
+        self.ObsData["nR"]=1
+        self.ObsData["xkm"]=nan
+        self.ObsData["L"]=nan
+        self.ObsData["dt"]=nan
+        self.ObsData["h0"]=nan
+        
+        #time
+        self.ObsData["t"]=linspace(1,self.ObsData["nt"],self.ObsData["nt"]) # map time_str in here        
+        
+        # height width and slope
+        self.ObsData["h"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
+        self.ObsData["h"][0,:]=reshape(hwsdata['wse'].values,(1,self.ObsData["nt"])) 
+        self.ObsData["w"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
+        self.ObsData["w"][0,:]=reshape(hwsdata['width'].values,(1,self.ObsData["nt"])) 
+        self.ObsData["S"]=empty(  (self.ObsData["nR"],self.ObsData["nt"]) )
+        #self.ObsData["S"][0,:]=reshape(hwsdata['slope'].values,(1,self.ObsData["nt"]))  # add option to use slope or slope2
+        self.ObsData["S"][0,:]=reshape(hwsdata[slope_opt].values,(1,self.ObsData["nt"]))  
+
+        # uncertainty
+        self.ObsData["sigh"]=.10 # height uncertainty in meters
+        self.ObsData["sigS"]=2e-5
+        self.ObsData["sigw"]=0.25*mean(self.ObsData["w"][0,:])
+        
+        # truth
+        self.TruthData["Q"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["Q"][0,:]=reshape(hwsdata['Qgage'].values,(1,self.ObsData["nt"])) 
+        self.TruthData["dA"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["h"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["w"]=empty( (self.ObsData["nR"],self.ObsData["nt"])  ) #discharge [m^3/s]
+        self.TruthData["A0"]=nan

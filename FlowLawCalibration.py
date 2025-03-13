@@ -61,7 +61,7 @@ class FlowLawCalibration:
             lb[0]=fl_param_bounds[0]
             ub[0]=fl_param_bounds[1]
 
-        param_bounds=optimize.Bounds(lb,ub)
+        param_bounds=optimize.Bounds(lb,ub)    
 
         # 2 try optimize 'least_squares' function
         if not self.success:
@@ -71,7 +71,8 @@ class FlowLawCalibration:
                                 bounds=param_bounds)
  
             if res.success:
-                print('... the least_squares solution worked')
+                if verbose: 
+                    print('... the least_squares solution worked')
                 self.success=True
  
         # 3 try the L-BFGS-B function

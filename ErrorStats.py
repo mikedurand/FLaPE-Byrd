@@ -28,6 +28,7 @@ class ErrorStats:
         self.nRMSE=self.RMSE/mean(self.Qt)
           
         res=self.Qhat-self.Qt
+
         logr=log(self.Qhat)-log(self.Qt)
 
         Rmatrix=corrcoef(self.Qhat,self.Qt)
@@ -61,6 +62,8 @@ class ErrorStats:
         self.nMAE=mean(abs(res))/mean(self.Qt)
     
         self.Qbart=mean(self.Qt)  
+
+        self.n=len(self.Qt)
     
     def ShowKeyErrorMetrics(self):
         print('Normalized RMSE:', '%.2f'%self.nRMSE)
@@ -69,3 +72,6 @@ class ErrorStats:
         print('KGE:', '%.2f'%self.KGE)        
         print('NSE:', '%.2f'%self.NSE)        
         print('RMSE/std(Q):', '%.2f'%(self.RMSE/std(self.Qt)))        
+        print('σQ/Q:', '%.2f'%self.stdRelRes)
+        print('nBias', '%.2f'%self.nbias)
+        print('67th percentile absolute error', '%.2f'%self.anr67)

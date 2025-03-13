@@ -265,6 +265,8 @@ class ReachObservations:
         plt.xlabel('WSE, m')
         plt.ylabel('Width, m')      
         plt.show() 
+
+        print('standard deviation of change in error after constraint',np.std(self.w[0,:]-self.wobs))
         
     def plotdA(self):
         fig,ax = plt.subplots()
