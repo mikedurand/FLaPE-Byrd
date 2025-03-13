@@ -61,11 +61,13 @@ class MWAPN(FlowLaws):
         super().__init__(dA,W,S,H)     
     def CalcQ(self,params):
         n=params[0]*((params[1]+self.dA)/self.W)**params[2]
-        Q=1/n*(params[1]+self.dA)**(5/3)*self.W**(-2/3)*self.S**(1/2)
+        Q=1/n*(params[1]+self.dA)**(5/3)*self.W**(-2/3)*self.S**(1/2)        
+        
         return Q
     def GetInitParams(self):
         #etc
         init_params=[.03, -min(self.dA)+1+std(self.dA),1]
+        #init_params=[.03, -min(self.dA)+1+std(self.dA),-1]
         return init_params       
     def GetParamBounds(self):
         #etc

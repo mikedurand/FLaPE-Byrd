@@ -133,3 +133,4 @@ dmypy.json
 *.swp
 .ipynb_checkpoints/ExampleUsage-checkpoint.ipynb
 .ipynb_checkpoints/ExampleUsage-checkpoint.ipynb
+*.ipynb
