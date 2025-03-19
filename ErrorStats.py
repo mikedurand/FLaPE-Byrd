@@ -58,6 +58,7 @@ class ErrorStats:
         self.KGE=1-sqrt( (self.r-1)**2 + (beta-1)**2 + (gamma-1)**2  )
 
         self.anr67=quantile(abs( res/self.Qt ),0.67)
+        self.σεn=quantile(abs( res/mean(self.Qt) ),0.67) 
 
         self.nMAE=mean(abs(res))/mean(self.Qt)
     

@@ -2,7 +2,7 @@
      SWOTCalibrationUtilities: helper functions for SWOTCalibration experiments
         - OutputReachCalibration - write out output dataframe
         - getresultdf - stack multiple result dataframes together. possibly obsolete
-        - CalibrateReach - perform flow law calibration
+        - CalibrateSWOTReach - perform flow law calibration
         - SetOptions - set variables with the calibration experiment options
 '''
 
@@ -123,7 +123,7 @@ def getresultdf(idx,expdf,ExpDataDir):
     
     return resultdf
 
-def CalibrateReach(fname,logoutput,slope_opt='slope',area_opt='MetroMan',constrainhw=False,flowlawname='MWAPN',Verbose=False):
+def CalibrateSWOTReach(fname,logoutput,slope_opt='slope',area_opt='MetroMan',constrainhw=False,flowlawname='MWAPN',Verbose=False,lossfun='linear'):
     
     '''
         CalibrateReach uses FLaPE Byrd with a single flow law to calibrate a reach
@@ -186,7 +186,7 @@ def CalibrateReach(fname,logoutput,slope_opt='slope',area_opt='MetroMan',constra
     # return FlowLaw,ReachDict['Qtrue'] #
     
     Cal=FlowLawCalibration(D,ReachDict['Qtrue'],FlowLaw)
-    Cal.CalibrateReach(verbose=False,suppress_warnings=False)
+    Cal.CalibrateReach(verbose=False,suppress_warnings=False,lossfun=lossfun)
     
     return Cal
 
@@ -203,6 +203,7 @@ def SetOptions(expdf,idx):
     print('  constrain height-width option:',expdf.iloc[idx]['constrainhw'])
     print('  flow law:',expdf.iloc[idx]['flowlaw'])
     print('  dark frac maximum:',expdf.iloc[idx]['darkfracmax'])
+    print('  loss function:',expdf.iloc[idx]['lossfun'])
         
     # set data source
     if expdf.iloc[idx]['swotsource']=='hydrochron':
@@ -252,5 +253,8 @@ def SetOptions(expdf,idx):
     
     reachdomain=expdf.iloc[idx]['reachdomain']
     # reachdomain    
+ 
+    # set loss function
+    lossfun=expdf.iloc[idx]['lossfun']
     
-    return expsid,expid,SWOTSource,fname_pvd,slope_data_element,slope_min,slope_const,area_option,constrainhw,flowlaw,darkfracmax,reachdomain
+    return expsid,expid,SWOTSource,fname_pvd,slope_data_element,slope_min,slope_const,area_option,constrainhw,flowlaw,darkfracmax,reachdomain,lossfun

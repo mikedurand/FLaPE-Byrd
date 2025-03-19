@@ -24,7 +24,7 @@ class FlowLawCalibration:
         self.Qhat=[]
         self.Performance={}
 
-    def CalibrateReach(self,verbose=True,optmethod='L-BFGS-B',suppress_warnings=False):     
+    def CalibrateReach(self,verbose=True,optmethod='L-BFGS-B',suppress_warnings=False,lossfun='linear'):     
   
         if suppress_warnings:
             warnings.filterwarnings("ignore")
@@ -64,11 +64,15 @@ class FlowLawCalibration:
         param_bounds=optimize.Bounds(lb,ub)    
 
         # 2 try optimize 'least_squares' function
+        #lossfun='linear'
+        #lossfun='soft_l1'
+        #lossfun='huber'
         if not self.success:
             res = optimize.least_squares(self.ObjectiveFuncRes,
                                 init_params,
                                 args=([self.Qtrue]),
-                                bounds=param_bounds)
+                                bounds=param_bounds,
+                                loss=lossfun)
  
             if res.success:
                 if verbose: 
