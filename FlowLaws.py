@@ -7,19 +7,19 @@ Created on Thu Jan 21 04:50:53 2021
 """
 
 from numpy import inf,sqrt,mean,std,zeros_like,log
+import numpy as np
 
 class FlowLaws:
     
     def __init__(self,dA,W,S,H,name='No Name'):
-        self.dA=dA
-        self.W=W
-        self.S=S       
-        self.H=H       #plan is to switch these to Obs                
+        self.dA = np.asarray(dA)
+        self.W  = np.asarray(W)
+        self.S  = np.asarray(S)
+        self.H  = np.asarray(H)
         
-        self.params=[]
-        self.init_params=[]                
-
-        self.name=name
+        self.params = []
+        self.init_params = []
+        self.name = name
         
 class MWACN(FlowLaws):
     # this flow law is Manning's equation, wide-river approximation, area-formulation, 
@@ -32,11 +32,14 @@ class MWACN(FlowLaws):
         return Q
     def GetInitParams(self):
         #etc
-        init_params=[.03, -min(self.dA)+1+std(self.dA)]
+        #init_params=[.03, -min(self.dA)+1+std(self.dA)]
+        init_params = [.03, -min(self.dA) + 1 + np.std(self.dA), 1]
+        init_params[1] = max(init_params[1], 1e-3)
         return init_params
         #etc
     def GetParamBounds(self):
-        param_bounds=( (.001, 1)  , (-min(self.dA)+1,inf) )
+        #param_bounds=( (.001, 1)  , (-min(self.dA)+1,inf) )
+        param_bounds = ((.001, -min(self.dA) + 1e-2, -5), (1, 1e4, 5))
         return param_bounds
     def CalcQUn(self,params,sigh,sigw,order):
         if order == 1:
@@ -59,10 +62,41 @@ class MWAPN(FlowLaws):
     #   powerlaw  friction coefficient, no channel shape assumption: MWAPN
     def __init__(self,dA,W,S,H):
         super().__init__(dA,W,S,H)     
-    def CalcQ(self,params):
-        n=params[0]*((params[1]+self.dA)/self.W)**params[2]
-        Q=1/n*(params[1]+self.dA)**(5/3)*self.W**(-2/3)*self.S**(1/2)        
+    # def CalcN(self,params):
+    #     A = params[1] + self.dA
+    #     A = np.where(A <= 0, np.nan, A)  # replace nonphysical values with NaN
+    #     W = self.W
+    #     S = self.S
+    #     n = params[0] * ((A / W) ** params[2])   
         
+    #     return n
+    # def CalcQ(self,params):
+    #     # n=params[0]*((params[1]+self.dA)/self.W)**params[2]
+    #     # Q=1/n*(params[1]+self.dA)**(5/3)*self.W**(-2/3)*self.S**(1/2)     
+    #     A = params[1] + self.dA
+    #     A = np.where(A <= 0, np.nan, A)  # replace nonphysical values with NaN
+    #     W = self.W
+    #     S = self.S
+    #     n = params[0] * ((A / W) ** params[2])
+    #     Q = 1 / n * A**(5/3) * W**(-2/3) * np.sqrt(S)
+    #     # return Q
+        
+    #     return Q
+    def CalcN(self, params):
+        A = params[1] + self.dA
+        A = np.where(A <= 0, np.nan, A)
+        W = np.where(self.W <= 0, np.nan, self.W)
+    
+        n = params[0] * (A / W) ** params[2]
+        return n
+    def CalcQ(self, params):
+        A = params[1] + self.dA
+        A = np.where(A <= 0, np.nan, A)
+        W = np.where(self.W <= 0, np.nan, self.W)
+        S = np.where(self.S <= 0, np.nan, self.S)
+    
+        n = self.CalcN(params)
+        Q = 1 / n * A ** (5 / 3) * W ** (-2 / 3) * np.sqrt(S)
         return Q
     def GetInitParams(self):
         #etc
@@ -184,7 +218,11 @@ class MOMMA(FlowLaws):
     # this is MOMMA, as written in eqns 9 and 10 of Frasson et al 2021
     # params=nb, Hb, B, r
     def __init__(self,dA,W,S,H):
-        super().__init__(dA,W,S,H)     
+        super().__init__(dA,W,S,H)
+    def CalcN(self,params):
+        n=params[0]*(1+log( (params[1]-params[2] )/(self.H-params[2]) ) )
+        
+        return n
     def CalcQ(self,params):
         n=params[0]*(1+log( (params[1]-params[2] )/(self.H-params[2]) ) )
         Q=1/n*( (self.H-params[2])*(params[3]/(1+params[3])))**(5/3)*self.W*self.S**0.5
