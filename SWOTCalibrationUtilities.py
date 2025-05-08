@@ -109,6 +109,7 @@ def getresultdf(idx,expdf,ExpDataDir):
     ExpsDir=ExpDataDir.joinpath(expsid)
     ExpDir=ExpsDir.joinpath(expid)
     ExpStatsDir=ExpDir.joinpath('fit+stats')
+    print(ExpStatsDir)
     # ExpStatsDir
     # get list of files
     calfiles=os.listdir(ExpStatsDir)
@@ -119,7 +120,10 @@ def getresultdf(idx,expdf,ExpDataDir):
     for file in calfiles:
         dfs.append(pd.read_csv(ExpStatsDir.joinpath(file),index_col=0))
 
-    resultdf=pd.concat(dfs)     
+    # print(dfs)
+
+    resultdf=pd.concat(dfs)
+    # print(resultdf)
     
     return resultdf
 
@@ -150,7 +154,7 @@ def CalibrateSWOTReach(fname,logoutput,slope_opt='slope',area_opt='MetroMan',con
             return None
                   
         return FlowLaw
-    
+
     
     # just runs a single flow law for now
     print('  running with ', slope_opt,file=logoutput)
@@ -187,6 +191,7 @@ def CalibrateSWOTReach(fname,logoutput,slope_opt='slope',area_opt='MetroMan',con
     
     Cal=FlowLawCalibration(D,ReachDict['Qtrue'],FlowLaw)
     Cal.CalibrateReach(verbose=False,suppress_warnings=False,lossfun=lossfun)
+
     
     return Cal
 

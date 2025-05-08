@@ -173,6 +173,8 @@ class ReachObservations:
             
             self.area_fit['h_break'][0]=np.nanmin(hhat)
             self.area_fit['h_break'][3]=np.nanmax(hhat)
+            
+        self.w = np.maximum(self.w, 0.01)
                 
 
     def MapPointToHypsometricCurve(self,h,w):
@@ -218,24 +220,38 @@ class ReachObservations:
             # Map point to intersection of subdomain fit and breakpoint
             hhat = self.area_fit['h_break'][close_break]
             what = p0 + p1 * hhat
+            what = max(what, 0.01)
 
         return hhat,what
                     
             
     def MapPointToSubDomain(self,sd,hobs,wobs):
  
-        p0=self.area_fit['fit_coeffs'][1,sd,0]  #intercept
-        p1=self.area_fit['fit_coeffs'][0,sd,0]  #slope
+        # p0=self.area_fit['fit_coeffs'][1,sd,0]  #intercept
+        # p1=self.area_fit['fit_coeffs'][0,sd,0]  #slope
 
+        # # use Fuller 1.3.17
+        # vhat=wobs-p0-p1*hobs
+        # suv=-p1*self.sigh**2 #could add a rho term here
+        # svv=self.sigw**2 + p1**2 * self.sigh**2 #could add a rho term here
+
+        # hhatsd=hobs-suv/svv*vhat
+        # whatsd=p0+p1*hhatsd
+
+        # return hhatsd,whatsd
+        p0 = self.area_fit['fit_coeffs'][1, sd, 0]  # intercept
+        p1 = self.area_fit['fit_coeffs'][0, sd, 0]  # slope
+    
         # use Fuller 1.3.17
-        vhat=wobs-p0-p1*hobs
-        suv=-p1*self.sigh**2 #could add a rho term here
-        svv=self.sigw**2 + p1**2 * self.sigh**2 #could add a rho term here
+        vhat = wobs - p0 - p1 * hobs
+        suv = -p1 * self.sigh**2
+        svv = self.sigw**2 + p1**2 * self.sigh**2
+    
+        hhatsd = hobs - suv / svv * vhat
+        whatsd = p0 + p1 * hhatsd
+        whatsd = max(whatsd, 0.01)  
 
-        hhatsd=hobs-suv/svv*vhat
-        whatsd=p0+p1*hhatsd
-
-        return hhatsd,whatsd
+        return hhatsd, whatsd
 
     def plotHW(self,plottitle=[]):
 
