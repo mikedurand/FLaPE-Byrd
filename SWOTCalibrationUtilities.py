@@ -212,7 +212,8 @@ def SetOptions(expdf,idx):
     elif expdf.iloc[idx]['swotsource']=='ADT-pvd':
         # ADT pseudo version D
         SWOTSource='ADT'
-        fname_pvd='/Users/mtd/Data/SWOT/Pseudo-Version-D/swot-adt-data/pseudo-version-d-reach.csv'
+        #fname_pvd='/Users/mtd/Data/SWOT/Pseudo-Version-D/swot-adt-data/pseudo-version-d-reach.csv'
+        fname_pvd='/Users/mtd/Data/SWOT/Pseudo-Version-D/reprocessed_rivertiles_xcal_VersC_versDadj_asdelivered_vD_20250617/pseudo-version-d-reach.csv'
         
     # set slope option
     slope_data_element=expdf.iloc[idx]['slopedata']
